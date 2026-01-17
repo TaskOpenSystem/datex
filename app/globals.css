@@ -10,7 +10,7 @@
   --color-foreground: var(--foreground);
   --font-sans: "Space Grotesk", sans-serif;
   --font-display: "Space Grotesk", sans-serif;
-  
+
   --font-sans: var(--font-inter);
   --font-display: var(--font-anton);
 
@@ -23,22 +23,22 @@
   --color-slush-purple: #9747FF;
   --color-slush-green: #00D68F;
   --color-slush-dark: #1A1A1A;
-  
+
   /* Marketplace Colors */
   --color-ink: #101618;
   --color-accent-lime: #ccff00;
   --color-accent-orange: #ff6b00;
   --color-accent-pink: #ff0099;
-  
+
   /* Border Radius */
   --radius: 0.5rem;
   --radius-large: 2rem;
-  
+
   /* Shadows */
   --shadow-hard: 4px 4px 0px 0px #101618;
   --shadow-hard-sm: 2px 2px 0px 0px #101618;
   --shadow-hard-lg: 8px 8px 0px 0px #101618;
-  
+
 
   /* Border Radius */
   --radius: 0.5rem;
@@ -119,6 +119,22 @@
 
 body {
   font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+/* Global cursor pointer for clickable elements */
+button,
+a,
+[role="button"],
+[role="link"],
+[role="menuitem"],
+input[type="submit"],
+input[type="button"],
+input[type="checkbox"],
+input[type="radio"],
+label[for],
+select,
+.cursor-pointer {
+  cursor: pointer;
 }
 
 .text-outline-light {
@@ -272,6 +288,7 @@ body {
   white-space: nowrap;
   direction: ltr;
 }
+
 /* Cursor Hover Animation */
 .cursor-animation {
   animation: cursorMove 3s ease-in-out infinite;
@@ -429,6 +446,7 @@ body {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }

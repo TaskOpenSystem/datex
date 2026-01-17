@@ -67,3 +67,35 @@ export interface Purchase {
   date: string;
   iconBg: string;
 }
+
+export type SortOption = 'newest' | 'oldest' | 'price_asc' | 'price_desc';
+
+export interface CategoryFilter {
+  id: string;
+  label: string;
+  checked: boolean;
+}
+
+export interface FilterState {
+  categories: CategoryFilter[];
+  priceRange: { min: number; max: number };
+  verifiedOnly: boolean;
+  search: string;
+  sortBy: SortOption;
+}
+
+export const DEFAULT_CATEGORIES: CategoryFilter[] = [
+  { id: 'defi', label: 'Finance (DeFi)', checked: false },
+  { id: 'social', label: 'Social Graph', checked: false },
+  { id: 'healthcare', label: 'Healthcare', checked: false },
+  { id: 'gaming', label: 'Gaming', checked: false },
+];
+
+export const DEFAULT_FILTERS: FilterState = {
+  categories: DEFAULT_CATEGORIES,
+  priceRange: { min: 0, max: 1000 },
+  verifiedOnly: false,
+  search: '',
+  sortBy: 'newest',
+};
+

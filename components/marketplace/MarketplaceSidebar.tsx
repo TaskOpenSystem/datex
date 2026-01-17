@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCurrentAccount, useDisconnectWallet, ConnectButton, useSuiClient } from "@mysten/dapp-kit";
 import { useQuery } from "@tanstack/react-query";
+import { useMarketplaceFilterContext } from "@/contexts/MarketplaceFilterContext";
 
 const WAL_COIN_TYPE = "0x9f992cc2430a1f442ca7a5ca7638169f5d5c00e0ebc3977a65e9ac6e497fe5ef::wal::WAL";
 
@@ -12,10 +13,24 @@ export default function MarketplaceSidebar() {
   const pathname = usePathname();
   const isExplore = pathname === "/marketplace";
   const isMyData = pathname === "/marketplace/my-data";
-  
+
   const account = useCurrentAccount();
   const { mutate: disconnect } = useDisconnectWallet();
   const suiClient = useSuiClient();
+
+  // Get filter state from context
+  const {
+    filters,
+    setCategory,
+    setPriceRange,
+    setVerifiedOnly,
+    resetFilters,
+  } = useMarketplaceFilterContext();
+
+  // Price slider state
+  const [isDragging, setIsDragging] = useState(false);
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const maxPrice = 1000;
 
   // Fetch SuiNS name
   const { data: suinsName } = useQuery({
@@ -68,13 +83,51 @@ export default function MarketplaceSidebar() {
     disconnect();
   };
 
-  const [categories, setCategories] = useState({
-    defi: true,
-    social: false,
-    healthcare: false,
-    gaming: false,
+  // Price slider handlers
+  const handleSliderMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    updatePriceFromMouse(e);
+  };
+
+  const updatePriceFromMouse = (e: MouseEvent | React.MouseEvent) => {
+    if (!sliderRef.current) return;
+    const rect = sliderRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const percentage = x / rect.width;
+    const newMax = Math.round(percentage * maxPrice);
+    setPriceRange(0, Math.max(10, newMax));
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        updatePriceFromMouse(e);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging]);
+
+  const pricePercentage = (filters.priceRange.max / maxPrice) * 100;
+
+  // Local state filter for My Data page (not connected to main filters)
+  const [localAssetStatus, setLocalAssetStatus] = useState({
+    active: true,
+    drafts: false,
+    archived: false,
   });
-  const [verified, setVerified] = useState(true);
 
   return (
     <aside className="hidden lg:flex w-72 shrink-0 flex-col border-r-2 border-ink bg-white h-screen sticky top-0 z-20 overflow-y-auto">
@@ -174,39 +227,33 @@ export default function MarketplaceSidebar() {
               <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500">
                 Filters
               </h3>
-              <button className="text-xs font-bold text-primary hover:underline">
+              <button
+                onClick={resetFilters}
+                className="text-xs font-bold text-primary hover:underline"
+              >
                 Reset
               </button>
             </div>
 
             <div className="space-y-3">
               <p className="font-bold text-sm text-ink">Category</p>
-              {Object.entries(categories).map(([key, value]) => (
+              {filters.categories.map((category) => (
                 <label
-                  key={key}
+                  key={category.id}
                   className="flex items-center gap-3 cursor-pointer group"
-                  onClick={() =>
-                    setCategories((prev) => ({
-                      ...prev,
-                      [key]: !prev[key as keyof typeof prev],
-                    }))
-                  }
+                  onClick={() => setCategory(category.id, !category.checked)}
                 >
                   <div
                     className={`w-5 h-5 border-2 border-ink rounded-full flex items-center justify-center group-hover:border-primary transition-colors bg-white`}
                   >
-                    {value && (
+                    {category.checked && (
                       <div className="w-2.5 h-2.5 bg-ink rounded-full"></div>
                     )}
                   </div>
                   <span
-                    className={`text-sm font-medium capitalize ${value ? "text-ink" : "text-gray-600 group-hover:text-ink"}`}
+                    className={`text-sm font-medium capitalize ${category.checked ? "text-ink" : "text-gray-600 group-hover:text-ink"}`}
                   >
-                    {key === "defi"
-                      ? "Finance (DeFi)"
-                      : key === "social"
-                        ? "Social Graph"
-                        : key}
+                    {category.label}
                   </span>
                 </label>
               ))}
@@ -214,28 +261,38 @@ export default function MarketplaceSidebar() {
 
             <div className="space-y-3">
               <p className="font-bold text-sm text-ink">Price Range (SUI)</p>
-              <div className="h-2 w-full rounded-full bg-gray-200 relative">
-                <div className="absolute left-0 top-0 h-full w-2/3 rounded-full bg-ink"></div>
-                <div className="absolute left-2/3 top-1/2 -translate-y-1/2 h-5 w-5 rounded-full border-2 border-ink bg-primary cursor-pointer hover:scale-110 transition-transform shadow-sm"></div>
+              <div
+                ref={sliderRef}
+                className="h-2 w-full rounded-full bg-gray-200 relative cursor-pointer"
+                onMouseDown={handleSliderMouseDown}
+              >
+                <div
+                  className="absolute left-0 top-0 h-full rounded-full bg-ink transition-all"
+                  style={{ width: `${pricePercentage}%` }}
+                ></div>
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 h-5 w-5 rounded-full border-2 border-ink bg-primary cursor-pointer hover:scale-110 transition-transform shadow-sm"
+                  style={{ left: `calc(${pricePercentage}% - 10px)` }}
+                ></div>
               </div>
               <div className="flex justify-between text-xs font-bold text-gray-500">
                 <span>0 SUI</span>
-                <span>1000 SUI</span>
+                <span>{filters.priceRange.max} SUI</span>
               </div>
             </div>
 
             <div className="space-y-3">
-              <p className="font-bold text-sm text-ink">Reliability Score</p>
+              {/* <p className="font-bold text-sm text-ink">Reliability Score</p> */}
               <div
                 className="flex items-center justify-between p-2 rounded-lg border-2 border-gray-100 bg-gray-50 cursor-pointer"
-                onClick={() => setVerified(!verified)}
+                onClick={() => setVerifiedOnly(!filters.verifiedOnly)}
               >
                 <span className="text-sm font-bold text-ink">Verified Source</span>
                 <div
-                  className={`w-10 h-5 rounded-full relative transition-colors ${verified ? "bg-ink" : "bg-gray-300"}`}
+                  className={`w-10 h-5 rounded-full relative transition-colors ${filters.verifiedOnly ? "bg-ink" : "bg-gray-300"}`}
                 >
                   <div
-                    className={`absolute top-1 w-3 h-3 rounded-full transition-all ${verified ? "right-1 bg-accent-lime" : "left-1 bg-white"}`}
+                    className={`absolute top-1 w-3 h-3 rounded-full transition-all ${filters.verifiedOnly ? "right-1 bg-accent-lime" : "left-1 bg-white"}`}
                   ></div>
                 </div>
               </div>
@@ -245,18 +302,31 @@ export default function MarketplaceSidebar() {
           <div className="flex flex-col gap-5">
             <h3 className="text-sm font-bold uppercase tracking-wider text-ink">Asset Status</h3>
             <div className="space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div className="w-5 h-5 border-2 border-ink rounded bg-primary flex items-center justify-center">
-                  <span className="material-symbols-outlined text-white text-xs font-bold">check</span>
+              <label
+                className="flex items-center gap-3 cursor-pointer group"
+                onClick={() => setLocalAssetStatus((prev) => ({ ...prev, active: !prev.active }))}
+              >
+                <div className={`w-5 h-5 border-2 border-ink rounded flex items-center justify-center ${localAssetStatus.active ? "bg-primary" : "bg-white group-hover:border-primary"}`}>
+                  {localAssetStatus.active && <span className="material-symbols-outlined text-white text-xs font-bold">check</span>}
                 </div>
-                <span className="text-sm font-bold text-ink">Active Listings</span>
+                <span className={`text-sm font-bold ${localAssetStatus.active ? "text-ink" : "text-ink"}`}>Active Listings</span>
               </label>
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div className="w-5 h-5 border-2 border-ink rounded bg-white flex items-center justify-center group-hover:border-primary transition-colors"></div>
+              <label
+                className="flex items-center gap-3 cursor-pointer group"
+                onClick={() => setLocalAssetStatus((prev) => ({ ...prev, drafts: !prev.drafts }))}
+              >
+                <div className={`w-5 h-5 border-2 border-ink rounded flex items-center justify-center ${localAssetStatus.drafts ? "bg-primary" : "bg-white group-hover:border-primary"}`}>
+                  {localAssetStatus.drafts && <span className="material-symbols-outlined text-white text-xs font-bold">check</span>}
+                </div>
                 <span className="text-sm font-medium text-ink group-hover:text-ink">Drafts</span>
               </label>
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <div className="w-5 h-5 border-2 border-ink rounded bg-white flex items-center justify-center group-hover:border-primary transition-colors"></div>
+              <label
+                className="flex items-center gap-3 cursor-pointer group"
+                onClick={() => setLocalAssetStatus((prev) => ({ ...prev, archived: !prev.archived }))}
+              >
+                <div className={`w-5 h-5 border-2 border-ink rounded flex items-center justify-center ${localAssetStatus.archived ? "bg-primary" : "bg-white group-hover:border-primary"}`}>
+                  {localAssetStatus.archived && <span className="material-symbols-outlined text-white text-xs font-bold">check</span>}
+                </div>
                 <span className="text-sm font-medium text-ink group-hover:text-ink">Archived</span>
               </label>
             </div>
@@ -291,7 +361,7 @@ export default function MarketplaceSidebar() {
                 )}
               </div>
             </div>
-            
+
             {/* Balances */}
             <div className="flex gap-2">
               <div className="flex-1 px-2 py-1.5 rounded-lg bg-white border border-gray-200">

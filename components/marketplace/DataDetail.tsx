@@ -46,49 +46,49 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
       gsap.set(sealRef.current, { scale: 0.5, opacity: 0, rotation: 0 });
       gsap.set(progressRef.current, { width: "0%" });
       gsap.set(iconRef.current, { scale: 1, opacity: 1, color: "white" });
-      
+
       // Animation Sequence
       tl.to(overlayRef.current, { opacity: 1, duration: 0.2 })
-        .to(sealRef.current, { 
-          scale: 1, 
-          opacity: 1, 
-          duration: 0.5, 
-          ease: "back.out(1.7)" 
+        .to(sealRef.current, {
+          scale: 1,
+          opacity: 1,
+          duration: 0.5,
+          ease: "back.out(1.7)"
         })
         .add(() => {
-           if(textRef.current) textRef.current.innerText = "VERIFYING OWNERSHIP";
-           if(subTextRef.current) subTextRef.current.innerText = "Checking wallet signature...";
+          if (textRef.current) textRef.current.innerText = "VERIFYING OWNERSHIP";
+          if (subTextRef.current) subTextRef.current.innerText = "Checking wallet signature...";
         })
         .to(sealRef.current, { rotation: 180, duration: 1, ease: "power2.inOut" })
         .to(progressRef.current, { width: "40%", duration: 1 }, "<")
         .to(iconRef.current, { scale: 0, rotation: 90, duration: 0.2 })
         .add(() => {
-           if(iconRef.current) iconRef.current.innerText = "lock_open";
-           if(textRef.current) textRef.current.innerText = "DECRYPTING SHARDS";
-           if(subTextRef.current) subTextRef.current.innerText = "Reassembling Walrus Protocol data...";
+          if (iconRef.current) iconRef.current.innerText = "lock_open";
+          if (textRef.current) textRef.current.innerText = "DECRYPTING SHARDS";
+          if (subTextRef.current) subTextRef.current.innerText = "Reassembling Walrus Protocol data...";
         })
         .to(iconRef.current, { scale: 1, rotation: 0, duration: 0.2 })
         .to(progressRef.current, { width: "75%", duration: 1.2 })
         .to(sealRef.current, { x: 5, duration: 0.05, yoyo: true, repeat: 5 })
-        .to(sealRef.current, { 
-           borderColor: "#ccff00",
-           backgroundColor: "#101618",
-           boxShadow: "0 0 50px rgba(204, 255, 0, 0.4)",
-           scale: 1.1,
-           duration: 0.3
+        .to(sealRef.current, {
+          borderColor: "#ccff00",
+          backgroundColor: "#101618",
+          boxShadow: "0 0 50px rgba(204, 255, 0, 0.4)",
+          scale: 1.1,
+          duration: 0.3
         })
         .to(iconRef.current, { scale: 0, duration: 0.1 }, "<")
         .add(() => {
-           if(iconRef.current) {
-             iconRef.current.innerText = "download";
-             iconRef.current.style.color = "#ccff00";
-           }
-           if(textRef.current) {
-             textRef.current.innerText = "DECRYPTION COMPLETE";
-             textRef.current.classList.add("text-accent-lime");
-           }
-           if(subTextRef.current) subTextRef.current.innerText = "Download starting now.";
-           if(pathRef.current) pathRef.current.style.fill = "#ccff00";
+          if (iconRef.current) {
+            iconRef.current.innerText = "download";
+            iconRef.current.style.color = "#ccff00";
+          }
+          if (textRef.current) {
+            textRef.current.innerText = "DECRYPTION COMPLETE";
+            textRef.current.classList.add("text-accent-lime");
+          }
+          if (subTextRef.current) subTextRef.current.innerText = "Download starting now.";
+          if (pathRef.current) pathRef.current.style.fill = "#ccff00";
         })
         .to(iconRef.current, { scale: 1.5, duration: 0.4, ease: "elastic.out(1, 0.5)" })
         .to(progressRef.current, { width: "100%", backgroundColor: "#ccff00", duration: 0.3 });
@@ -99,14 +99,14 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
     <div className="flex flex-col lg:flex-row h-full w-full overflow-hidden">
       {/* LEFT PANEL */}
       <div className="w-full lg:w-[400px] shrink-0 bg-accent-lime border-b-2 lg:border-b-0 lg:border-r-2 border-ink flex flex-col p-6 lg:p-8 gap-6 lg:gap-8 overflow-y-auto z-10 relative">
-        <button 
+        <button
           onClick={onBack}
           className="inline-flex items-center gap-2 font-bold text-ink hover:underline uppercase tracking-wide text-sm"
         >
           <span className="material-symbols-outlined">arrow_back</span>
           Back to Marketplace
         </button>
-        
+
         <div className="flex flex-col gap-2 mt-4">
           <div className="flex gap-2 flex-wrap">
             {asset.tags && asset.tags.length > 0 ? (
@@ -125,9 +125,9 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
           <h2 className="text-3xl font-black leading-tight">{asset.title}</h2>
           <p className="text-sm font-bold opacity-80">Updated: {asset.updatedAt || 'Recently'}</p>
         </div>
-        
+
         <hr className="border-t-2 border-ink border-dashed opacity-50" />
-        
+
         <div className="grid grid-cols-1 gap-4">
           <div className="flex items-center justify-between p-4 bg-white border-2 border-ink rounded-xl shadow-hard-sm">
             <span className="text-sm font-bold text-gray-500 uppercase">Storage Size</span>
@@ -145,7 +145,7 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
             <span className="text-xl font-black">{asset.formats?.join(' / ') || 'CSV'}</span>
           </div>
         </div>
-        
+
         <div className="mt-auto flex flex-col gap-4">
           <div className="flex flex-col">
             <span className="text-sm font-bold uppercase tracking-widest opacity-60">Current Price</span>
@@ -154,7 +154,7 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
             </div>
             <span className="text-sm font-bold opacity-60">≈ ${(asset.price * 1.25).toFixed(2)} USD</span>
           </div>
-          <button 
+          <button
             onClick={() => setIsBuyModalOpen(true)}
             className="group relative w-full rounded-xl border-2 border-ink bg-ink py-4 text-white shadow-hard transition-all hover:-translate-y-1 hover:bg-primary hover:text-ink hover:shadow-hard-lg"
           >
@@ -163,7 +163,6 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
               <span className="text-xl font-black uppercase tracking-wide">Buy Now</span>
             </div>
           </button>
-          <p className="text-center text-xs font-bold opacity-60">Secured by Walrus Protocol</p>
         </div>
       </div>
 
@@ -171,19 +170,19 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
       <div className="flex-1 bg-white overflow-y-auto relative">
         <div className="absolute right-0 top-0 h-64 w-64 bg-gray-50 rounded-bl-[100px] -z-0"></div>
         <div className="max-w-5xl mx-auto p-6 lg:p-12 flex flex-col gap-12 relative z-10">
-          
+
           {/* Hero Image */}
           <section className="flex flex-col gap-6">
             <div className="relative w-full aspect-[2/1] rounded-2xl border-2 border-ink bg-gray-100 overflow-hidden shadow-hard-lg group">
-              <div 
-                className="w-full h-full bg-cover bg-center group-hover:scale-105 transition-transform duration-700" 
+              <div
+                className="w-full h-full bg-cover bg-center group-hover:scale-105 transition-transform duration-700"
                 style={{ backgroundImage: `url('${asset.imageUrl}')` }}
               ></div>
               <div className="absolute bottom-4 right-4 flex gap-2">
                 <button className="h-10 w-10 bg-white border-2 border-ink rounded-lg flex items-center justify-center hover:bg-accent-lime transition-colors shadow-hard-sm">
                   <span className="material-symbols-outlined">fullscreen</span>
                 </button>
-                <button 
+                <button
                   onClick={handleDownloadClick}
                   className="h-10 w-10 bg-white border-2 border-ink rounded-lg flex items-center justify-center hover:bg-accent-lime transition-colors shadow-hard-sm"
                 >
@@ -263,15 +262,15 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
               </div>
               <button className="text-sm font-bold text-primary hover:text-ink hover:underline">Write a Review</button>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {asset.reviews ? asset.reviews.map(review => (
                 <div key={review.id} className="rounded-xl border-2 border-ink bg-white p-6 shadow-hard-sm hover:shadow-hard transition-shadow">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-3">
                       {review.avatar ? (
-                        <div 
-                          className="h-10 w-10 rounded-full border-2 border-ink bg-cover bg-center" 
+                        <div
+                          className="h-10 w-10 rounded-full border-2 border-ink bg-cover bg-center"
                           style={{ backgroundImage: `url('${review.avatar}')` }}
                         ></div>
                       ) : (
@@ -329,7 +328,7 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
                   You are about to purchase <span className="font-bold text-ink">{asset.title}</span>.
                 </p>
               </div>
-              
+
               <div className="bg-gray-50 p-4 rounded-xl border-2 border-gray-200 flex justify-between items-center">
                 <span className="text-sm font-bold text-gray-500 uppercase">Total</span>
                 <div className="flex items-baseline gap-1">
@@ -359,22 +358,22 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
 
       {/* Decryption Animation Overlay */}
       {isDownloadProcessing && (
-        <div 
+        <div
           ref={overlayRef}
           className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-ink/95 backdrop-blur-md transition-colors opacity-0"
         >
           {/* The Decryption Seal */}
-          <div 
+          <div
             ref={sealRef}
             className="relative flex h-64 w-64 items-center justify-center rounded-full border-[6px] border-white bg-ink shadow-2xl"
           >
             {/* Animated Rings */}
             <div className="absolute inset-2 rounded-full border-2 border-dashed border-white/30 animate-spin" style={{ animationDuration: '10s' }}></div>
             <div className="absolute inset-4 rounded-full border border-white/10 animate-spin" style={{ animationDuration: '8s', animationDirection: 'reverse' }}></div>
-            
+
             {/* Icon */}
             <span ref={iconRef} className="material-symbols-outlined text-8xl text-white relative z-10">lock</span>
-            
+
             {/* Decorative Text Ring */}
             <svg className="absolute inset-0 h-full w-full animate-spin" style={{ animationDuration: '20s' }} viewBox="0 0 100 100" width="100" height="100">
               <path id="circlePath2" d="M 50, 50 m -35, 0 a 35,35 0 1,1 70,0 a 35,35 0 1,1 -70,0" fill="transparent" />
@@ -387,8 +386,8 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
           </div>
 
           {/* Status Text */}
-          <h2 
-            ref={textRef} 
+          <h2
+            ref={textRef}
             className="mt-12 text-3xl font-black text-white uppercase tracking-[0.2em] text-center px-4"
           >
             INITIALIZING
@@ -399,8 +398,8 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
 
           {/* Progress Bar */}
           <div className="mt-8 h-4 w-64 rounded-full border-2 border-white bg-gray-800 p-1 overflow-hidden">
-            <div 
-              ref={progressRef} 
+            <div
+              ref={progressRef}
               className="h-full w-0 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.8)]"
             ></div>
           </div>

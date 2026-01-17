@@ -2,7 +2,23 @@
 
 import React from 'react';
 
-export default function MarketplaceHeader() {
+interface MarketplaceHeaderProps {
+  search?: string;
+  onSearchChange?: (value: string) => void;
+  onSearch?: () => void;
+}
+
+export default function MarketplaceHeader({
+  search = '',
+  onSearchChange,
+  onSearch,
+}: MarketplaceHeaderProps) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      onSearch?.();
+    }
+  };
+
   return (
     <header className="p-8 pb-4">
       <div className="flex flex-col gap-6">
@@ -12,12 +28,18 @@ export default function MarketplaceHeader() {
             <div className="flex h-full items-center justify-center pl-4 pr-2">
               <span className="material-symbols-outlined text-ink text-3xl">search</span>
             </div>
-            <input 
+            <input
               className="h-full w-full border-none bg-transparent px-2 text-xl font-bold placeholder:text-gray-300 focus:ring-0 text-ink focus:outline-none"
-              placeholder="Find the data you need..." 
+              placeholder="Find the data you need..."
               type="text"
+              value={search}
+              onChange={(e) => onSearchChange?.(e.target.value)}
+              onKeyDown={handleKeyDown}
             />
-            <button className="mr-2 h-10 rounded-lg bg-primary px-6 text-sm font-bold text-ink hover:bg-accent-lime transition-colors border-2 border-ink">
+            <button
+              onClick={onSearch}
+              className="mr-2 h-10 rounded-lg bg-primary px-6 text-sm font-bold text-ink hover:bg-accent-lime transition-colors border-2 border-ink"
+            >
               SEARCH
             </button>
           </div>
