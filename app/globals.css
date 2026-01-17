@@ -10,22 +10,33 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
-  --font-display: var(--font-anton);
+  --font-sans: "Space Grotesk", sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
   
   /* Custom Colors */
-  --color-primary: #3B82F6;
-  --color-background-light: #FDFDFD;
-  --color-background-dark: #050505;
+  --color-primary: #00bfff;
+  --color-background-light: #f6f7f9;
+  --color-background-dark: #19202e;
   --color-slush-yellow: #FFD600;
   --color-slush-orange: #FF5C00;
   --color-slush-purple: #9747FF;
   --color-slush-green: #00D68F;
   --color-slush-dark: #1A1A1A;
   
+  /* Marketplace Colors */
+  --color-ink: #101618;
+  --color-accent-lime: #ccff00;
+  --color-accent-orange: #ff6b00;
+  --color-accent-pink: #ff0099;
+  
   /* Border Radius */
   --radius: 0.5rem;
   --radius-large: 2rem;
+  
+  /* Shadows */
+  --shadow-hard: 4px 4px 0px 0px #101618;
+  --shadow-hard-sm: 2px 2px 0px 0px #101618;
+  --shadow-hard-lg: 8px 8px 0px 0px #101618;
   
   /* Animations */
   --animate-marquee: marquee 25s linear infinite;
@@ -83,21 +94,34 @@ body {
   color: transparent;
 }
 
+/* Custom Scrollbar for that chunky feel */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 12px;
+  height: 12px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #f0f4f5;
+  border-left: 2px solid #101618;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 4px;
+  background: #101618;
+  border: 2px solid #f0f4f5;
+  border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: #00bfff;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Custom Sui Wallet Button Styles */
@@ -164,4 +188,50 @@ body {
 :is(.dark *) [role="menu"] {
   background: #1f2937 !important;
   border-color: #374151 !important;
+}
+
+/* Marketplace styles */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Line clamp utility */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Marketplace shadow utilities */
+.shadow-hard {
+  box-shadow: 4px 4px 0px 0px #101618;
+}
+
+.shadow-hard-sm {
+  box-shadow: 2px 2px 0px 0px #101618;
+}
+
+.shadow-hard-lg {
+  box-shadow: 8px 8px 0px 0px #101618;
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
 }

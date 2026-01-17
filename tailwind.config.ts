@@ -10,18 +10,29 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        primary: "#3B82F6", // Electric Blue
-        "background-light": "#FDFDFD",
-        "background-dark": "#050505",
+        primary: "#00bfff", // Cyan - Marketplace primary
+        "background-light": "#f6f7f9",
+        "background-dark": "#19202e",
         "slush-yellow": "#FFD600",
         "slush-orange": "#FF5C00",
         "slush-purple": "#9747FF",
         "slush-green": "#00D68F",
         "slush-dark": "#1A1A1A",
+        // Marketplace colors
+        ink: "#101618",
+        "accent-lime": "#ccff00",
+        "accent-orange": "#ff6b00",
+        "accent-pink": "#ff0099",
+      },
+      boxShadow: {
+        hard: "4px 4px 0px 0px #101618",
+        "hard-sm": "2px 2px 0px 0px #101618",
+        "hard-lg": "8px 8px 0px 0px #101618",
       },
       fontFamily: {
-        display: ["var(--font-anton)", "sans-serif"],
-        body: ["var(--font-inter)", "sans-serif"],
+        display: ["Space Grotesk", "sans-serif"],
+        sans: ["Space Grotesk", "sans-serif"],
+        body: ["Space Grotesk", "sans-serif"],
       },
       borderRadius: {
         DEFAULT: "0.5rem",

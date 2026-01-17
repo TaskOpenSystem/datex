@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Anton, Inter } from "next/font/google";
+import { Anton, Inter, Space_Grotesk } from "next/font/google";
 import { EnokiProviders } from "@/components/providers/EnokiProviders";
 import "./globals.css";
 import "@mysten/dapp-kit/dist/index.css";
@@ -13,6 +13,12 @@ const anton = Anton({
 const inter = Inter({
   weight: ["400", "600", "800"],
   variable: "--font-inter",
+  subsets: ["latin"],
+});
+
+const spaceGrotesk = Space_Grotesk({
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
 });
 
@@ -32,6 +38,10 @@ export default function RootLayout({
       <head>
         <link
           href="https://fonts.googleapis.com/icon?family=Material+Icons"
+          rel="stylesheet"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
           rel="stylesheet"
         />
         <script
@@ -54,7 +64,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${anton.variable} ${inter.variable} antialiased`}
+        className={`${anton.variable} ${inter.variable} ${spaceGrotesk.variable} antialiased`}
         suppressHydrationWarning
       >
         <EnokiProviders>{children}</EnokiProviders>
