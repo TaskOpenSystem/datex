@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -8,8 +10,54 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-anton);
+  
+  /* Custom Colors */
+  --color-primary: #3B82F6;
+  --color-background-light: #FDFDFD;
+  --color-background-dark: #050505;
+  --color-slush-yellow: #FFD600;
+  --color-slush-orange: #FF5C00;
+  --color-slush-purple: #9747FF;
+  --color-slush-green: #00D68F;
+  --color-slush-dark: #1A1A1A;
+  
+  /* Border Radius */
+  --radius: 0.5rem;
+  --radius-large: 2rem;
+  
+  /* Animations */
+  --animate-marquee: marquee 25s linear infinite;
+  --animate-marquee-reverse: marquee-reverse 25s linear infinite;
+  --animate-float: float 6s ease-in-out infinite;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes marquee-reverse {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(0%);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,5 +70,98 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-inter), Arial, Helvetica, sans-serif;
+}
+
+.text-outline-light {
+  -webkit-text-stroke: 2px black;
+  color: transparent;
+}
+
+.text-outline-dark {
+  -webkit-text-stroke: 2px white;
+  color: transparent;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Custom Sui Wallet Button Styles */
+.sui-wallet-button button {
+  background-color: #000;
+  color: #fff;
+  padding: 0.5rem 1.25rem;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  transition: transform 0.2s;
+  border: none;
+  cursor: pointer;
+}
+
+.sui-wallet-button button:hover {
+  transform: scale(1.05);
+}
+
+:is(.dark *) .sui-wallet-button button {
+  background-color: #fff;
+  color: #000;
+}
+
+/* Style cho account menu dropdown */
+[data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
+
+/* Style cho các nút trong account menu (Copy, Disconnect, v.v.) */
+.dapp-kit-account-dropdown-menu-item,
+[role="menuitem"] {
+  padding: 0.75rem 1rem !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  transition: all 0.2s !important;
+  border-radius: 0.5rem !important;
+  margin: 0.25rem !important;
+}
+
+.dapp-kit-account-dropdown-menu-item:hover,
+[role="menuitem"]:hover {
+  background-color: #f3f4f6 !important;
+  transform: translateX(4px) !important;
+}
+
+:is(.dark *) .dapp-kit-account-dropdown-menu-item:hover,
+:is(.dark *) [role="menuitem"]:hover {
+  background-color: #374151 !important;
+}
+
+/* Style cho dropdown menu container */
+[role="menu"] {
+  background: white !important;
+  border: 2px solid #e5e7eb !important;
+  border-radius: 1rem !important;
+  padding: 0.5rem !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1) !important;
+  min-width: 200px !important;
+}
+
+:is(.dark *) [role="menu"] {
+  background: #1f2937 !important;
+  border-color: #374151 !important;
 }
