@@ -10,14 +10,15 @@ import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc';
 import { Transaction } from '@mysten/sui/transactions';
 import { marketplaceConfig, MIST_PER_SUI } from '@/config/marketplace';
 import { getMarketplaceTarget } from '@/lib/marketplace';
+import { encryptForMarketplace } from '@/lib/seal';
 
-// Type for Walrus write files flow
-interface WalrusWriteFlow {
+// Type for Walrus write blob flow (raw bytes, no file metadata)
+interface WalrusBlobFlow {
   encode: () => Promise<void>;
   register: (opts: { epochs: number; owner: string; deletable: boolean }) => Transaction;
   upload: (opts: { digest: string }) => Promise<void>;
   certify: () => Transaction;
-  listFiles: () => Promise<Array<{ blobId?: string; id?: string }>>;
+  getBlob: () => Promise<{ blobId: string; blobObject: unknown }>;
 }
 
 const walrusModule = {
@@ -93,9 +94,8 @@ export default function MyDataPage() {
     }]);
   };
 
-  const createFlow = useCallback(async (data: Uint8Array, identifier: string) => {
+  const createFlow = useCallback(async (data: Uint8Array, _identifier: string) => {
     const walrus = await getWalrus();
-    const { WalrusFile } = await import('@mysten/walrus');
 
     const client = new SuiJsonRpcClient({
       url: getFullnodeUrl('testnet'),
@@ -107,15 +107,11 @@ export default function MyDataPage() {
           sendTip: { max: 1_000_000 },
         },
       })
-    ) as unknown as { walrus: { writeFilesFlow: (opts: { files: unknown[] }) => WalrusWriteFlow } };
+    ) as unknown as { walrus: { writeBlobFlow: (opts: { blob: Uint8Array }) => WalrusBlobFlow } };
 
-    const walrusFile = WalrusFile.from({
-      contents: data,
-      identifier,
-    });
-
-    return client.walrus.writeFilesFlow({
-      files: [walrusFile],
+    // Use writeBlobFlow for raw bytes (no file metadata wrapper)
+    return client.walrus.writeBlobFlow({
+      blob: data,
     });
   }, []);
 
@@ -151,20 +147,40 @@ export default function MyDataPage() {
         return;
       }
 
-      addLog('encode', 'processing', 'Encoding file...');
+      // Step 0: Read file and encrypt with Seal
+      addLog('encode', 'processing', 'Encrypting file with Seal...');
 
       const fileBytes = await file.arrayBuffer();
       const uint8Array = new Uint8Array(fileBytes);
 
-      // Step 1: Create flow and encode
-      const flow = await createFlow(uint8Array, file.name);
+      console.log('=== SEAL ENCRYPTION START ===');
+      console.log('Original file size:', uint8Array.length);
+
+      // Encrypt data using Seal before uploading to Walrus
+      let dataToUpload: Uint8Array;
+      let encryptedObj: string;
+      
+      try {
+        const encryptResult = await encryptForMarketplace(uint8Array);
+        dataToUpload = encryptResult.encryptedBytes;
+        encryptedObj = encryptResult.encryptedHex.slice(0, 128); // Store first 128 chars as reference
+        
+        console.log('Encrypted data size:', dataToUpload.length);
+        addLog('encode', 'success', 'File encrypted with Seal');
+      } catch (encryptError) {
+        console.warn('Seal encryption failed, uploading unencrypted:', encryptError);
+        // Fallback: upload unencrypted if Seal fails
+        dataToUpload = uint8Array;
+        encryptedObj = bytesToHex(uint8Array).slice(0, 128);
+        addLog('encode', 'success', 'File prepared (unencrypted fallback)');
+      }
+
+      setEncryptedObject(encryptedObj);
+
+      // Step 1: Create flow with encrypted data
+      const flow = await createFlow(dataToUpload, file.name);
       flowRef.current = flow;
       await flow.encode();
-      addLog('encode', 'success', 'File encoded');
-
-      // Generate encrypted object from file content (first 64 bytes as hex)
-      const encryptedObj = bytesToHex(uint8Array).slice(0, 128);
-      setEncryptedObject(encryptedObj);
 
       // Step 2: Register blob on-chain
       setCurrentStep('register');
@@ -202,18 +218,18 @@ export default function MyDataPage() {
                   onSuccess: async (certifyResult) => {
                     addLog('certify', 'success', 'Blob certified', `TX: ${certifyResult.digest.slice(0, 16)}...`);
 
-                    // Step 5: Get blobId from listFiles (only available after certify)
+                    // Step 5: Get blobId from getBlob (for raw blob upload)
                     let walrusBlobId = '';
                     try {
-                      const files = await flow.listFiles();
-                      console.log('[Walrus] Files:', files);
-                      walrusBlobId = files[0]?.blobId || files[0]?.id || '';
+                      const blobInfo = await flow.getBlob();
+                      console.log('[Walrus] Blob:', blobInfo);
+                      walrusBlobId = blobInfo.blobId || '';
                       if (walrusBlobId) {
                         setBlobId(walrusBlobId);
                         addLog('complete', 'success', 'Blob ID obtained', `ID: ${walrusBlobId.slice(0, 20)}...`);
                       }
                     } catch (listError) {
-                      console.error('[Walrus] listFiles error:', listError);
+                      console.error('[Walrus] getBlob error:', listError);
                     }
 
                     // Step 6: Create listing
