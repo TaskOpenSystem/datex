@@ -56,7 +56,7 @@ export default function MyDataPage() {
   const createFlow = useCallback(async (data: Uint8Array, identifier: string) => {
     const walrus = await getWalrus();
     const { WalrusFile } = await import('@mysten/walrus');
-    
+
     const client = new SuiJsonRpcClient({
       url: getFullnodeUrl('testnet'),
       network: 'testnet',
@@ -97,7 +97,7 @@ export default function MyDataPage() {
 
   const handleStartUpload = async () => {
     if (!file || !account) return;
-    
+
     setIsProcessing(true);
     setUploadError('');
 
@@ -110,7 +110,7 @@ export default function MyDataPage() {
       flowRef.current = flow;
 
       await flow.encode();
-      
+
       setEncryptedObject('0x' + bytesToHex(uint8Array).slice(0, 128));
       setUploadStep('upload');
     } catch (err) {
@@ -243,9 +243,9 @@ export default function MyDataPage() {
       });
 
       tl.to('#anim-overlay', { opacity: 1, duration: 0.2 })
-        .to('#anim-text', { 
-          duration: 0.5, 
-          onStart: () => { 
+        .to('#anim-text', {
+          duration: 0.5,
+          onStart: () => {
             document.getElementById('anim-text')!.innerText = 'ENCRYPTING METADATA';
             document.getElementById('anim-subtext')!.innerText = 'Preparing asset for encryption';
           }
@@ -254,14 +254,14 @@ export default function MyDataPage() {
         .to('#anim-seal', { scale: 1, opacity: 1, rotation: 0, duration: 0.4, ease: 'elastic.out(1, 0.5)' })
         .to('#anim-overlay', { backgroundColor: '#101618', duration: 0.1, yoyo: true, repeat: 1 }, '-=0.2')
         .to('#anim-icon', { scale: 1, opacity: 1, duration: 0.3, ease: 'back.out(1.7)' })
-        .add(() => { 
+        .add(() => {
           document.getElementById('anim-text')!.innerText = 'VERIFYING ZK-PROOFS';
           document.getElementById('anim-subtext')!.innerText = 'Generating SNARKs on Sui Network...';
         })
         .to('#anim-progress', { width: '90%', duration: 1 })
         .to('#anim-seal', { borderColor: '#ccff00', boxShadow: '0 0 30px #ccff00', duration: 0.3 })
         .to('#anim-icon', { color: '#ccff00', duration: 0.3 }, '<')
-        .add(() => { 
+        .add(() => {
           document.getElementById('anim-text')!.innerText = 'ASSET SECURED';
           document.getElementById('anim-text')!.classList.add('text-accent-lime');
           document.getElementById('anim-subtext')!.innerText = 'Listing created successfully.';
@@ -283,7 +283,7 @@ export default function MyDataPage() {
             </div>
             <h1 className="text-4xl font-black text-ink uppercase tracking-tight">My Data Dashboard</h1>
           </div>
-          
+
           <div className="relative group">
             <div className="absolute -inset-1 rounded-xl bg-ink opacity-100 translate-x-1 translate-y-1 blur-0"></div>
             <div className="relative flex items-center gap-6 rounded-xl border-2 border-ink bg-white p-4 pr-8 shadow-sm">
@@ -309,23 +309,21 @@ export default function MyDataPage() {
 
       <div className="px-8 mt-6">
         <div className="flex gap-4 border-b-2 border-gray-200">
-          <button 
+          <button
             onClick={() => setActiveTab('uploads')}
-            className={`px-6 py-3 rounded-t-xl border-2 font-bold text-lg transition-colors relative top-[2px] z-10 ${
-              activeTab === 'uploads' 
-                ? 'border-ink border-b-0 bg-white text-ink shadow-[0_-2px_0_0_rgba(0,0,0,0.05)]' 
-                : 'border-transparent hover:bg-gray-100 text-gray-500'
-            }`}
+            className={`px-6 py-3 rounded-t-xl border-2 font-bold text-lg transition-colors relative top-[2px] z-10 ${activeTab === 'uploads'
+              ? 'border-ink border-b-0 bg-white text-ink shadow-[0_-2px_0_0_rgba(0,0,0,0.05)]'
+              : 'border-transparent hover:bg-gray-100 text-gray-500'
+              }`}
           >
             My Uploads
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('purchases')}
-            className={`px-6 py-3 rounded-t-xl border-2 font-bold text-lg transition-colors relative top-[2px] z-10 ${
-              activeTab === 'purchases' 
-                ? 'border-ink border-b-0 bg-white text-ink shadow-[0_-2px_0_0_rgba(0,0,0,0.05)]' 
-                : 'border-transparent hover:bg-gray-100 text-gray-500'
-            }`}
+            className={`px-6 py-3 rounded-t-xl border-2 font-bold text-lg transition-colors relative top-[2px] z-10 ${activeTab === 'purchases'
+              ? 'border-ink border-b-0 bg-white text-ink shadow-[0_-2px_0_0_rgba(0,0,0,0.05)]'
+              : 'border-transparent hover:bg-gray-100 text-gray-500'
+              }`}
           >
             My Purchases
           </button>
@@ -343,9 +341,9 @@ export default function MyDataPage() {
                 View Analytics <span className="material-symbols-outlined text-sm">arrow_outward</span>
               </button>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              <article 
+              <article
                 onClick={() => setIsCreateModalOpen(true)}
                 className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-ink bg-gray-50 p-6 min-h-[340px] hover:bg-blue-50 hover:border-primary transition-all duration-200 cursor-pointer group"
               >
@@ -398,7 +396,7 @@ export default function MyDataPage() {
                 Recent Purchases <span className="text-gray-400 text-base font-normal ml-1">(0 items)</span>
               </h2>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               <article className="flex flex-col rounded-xl border-2 border-ink bg-white p-4 shadow-hard-sm opacity-60">
                 <div className="flex items-start justify-between mb-4">
@@ -409,7 +407,7 @@ export default function MyDataPage() {
                 </div>
                 <h3 className="text-lg font-bold text-gray-400 mb-1">No purchases yet</h3>
                 <p className="text-sm text-gray-400 mb-4">Start exploring the marketplace to find datasets.</p>
-                <Link 
+                <Link
                   href="/marketplace"
                   className="mt-auto w-full h-10 rounded-lg border-2 border-ink bg-gray-100 text-gray-500 font-bold transition-colors flex items-center justify-center gap-2"
                 >
@@ -420,15 +418,6 @@ export default function MyDataPage() {
           </section>
         )}
       </div>
-
-      <footer className="mt-auto border-t-2 border-ink pt-8 flex flex-col items-center gap-4 text-center opacity-60 pb-8 bg-[#f6f7f9]">
-        <p className="text-sm font-bold">Powered by Sui Network</p>
-        <div className="flex gap-4">
-          <span className="material-symbols-outlined">dataset</span>
-          <span className="material-symbols-outlined">security</span>
-          <span className="material-symbols-outlined">hub</span>
-        </div>
-      </footer>
 
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4">
@@ -606,15 +595,14 @@ export default function MyDataPage() {
                   <div className="space-y-6">
                     <div className="bg-white border-2 border-ink rounded-xl p-6">
                       <h3 className="font-bold uppercase text-lg mb-4 text-ink">Upload Wizard</h3>
-                      
+
                       <div className="space-y-3 mb-6">
                         <div className="flex items-center gap-3 p-3 rounded-xl border-2 bg-green-100 border-green-500">
                           <span className="material-symbols-outlined text-green-600">check_circle</span>
                           <span className="font-semibold text-ink">Step 1: Encode file</span>
                         </div>
-                        <div className={`flex items-center gap-3 p-3 rounded-xl border-2 ${
-                          isProcessing ? 'bg-blue-100 border-blue-500' : 'bg-gray-100 border-gray-300'
-                        }`}>
+                        <div className={`flex items-center gap-3 p-3 rounded-xl border-2 ${isProcessing ? 'bg-blue-100 border-blue-500' : 'bg-gray-100 border-gray-300'
+                          }`}>
                           <span className={`material-symbols-outlined ${isProcessing ? 'text-blue-600' : 'text-gray-400'}`}>
                             {isProcessing ? 'pending' : 'radio_button_unchecked'}
                           </span>
@@ -670,7 +658,7 @@ export default function MyDataPage() {
                           <p className="text-sm text-gray-600">Your data is stored on Walrus</p>
                         </div>
                       </div>
-                      
+
                       <div className="bg-white rounded-lg p-4 border-2 border-ink mb-4">
                         <p className="text-sm text-gray-500 mb-1">Status</p>
                         <p className="font-semibold text-ink">Successfully uploaded to Walrus!</p>
@@ -729,19 +717,19 @@ export default function MyDataPage() {
       )}
 
       {processingType && (
-        <div 
+        <div
           id="anim-overlay"
           className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-ink/95 backdrop-blur-md transition-colors opacity-0"
         >
-          <div 
+          <div
             id="anim-seal"
             className="relative flex h-64 w-64 items-center justify-center rounded-full border-[6px] border-white bg-ink shadow-2xl"
           >
             <div className="absolute inset-2 rounded-full border-2 border-dashed border-white/30 animate-spin" style={{ animationDuration: '10s' }}></div>
             <div className="absolute inset-4 rounded-full border border-white/10 animate-spin" style={{ animationDuration: '8s', animationDirection: 'reverse' }}></div>
-            
+
             <span id="anim-icon" className="material-symbols-outlined text-8xl text-white relative z-10">lock</span>
-            
+
             <svg className="absolute inset-0 h-full w-full animate-spin" style={{ animationDuration: '20s', animationDirection: 'reverse' }} viewBox="0 0 100 100" width="100" height="100">
               <path id="circlePathCommon" d="M 50, 50 m -35, 0 a 35,35 0 1,1 70,0 a 35,35 0 1,1 -70,0" fill="transparent" />
               <text fill="white" fontSize="8" fontWeight="bold" letterSpacing="2">
@@ -752,8 +740,8 @@ export default function MyDataPage() {
             </svg>
           </div>
 
-          <h2 
-            id="anim-text" 
+          <h2
+            id="anim-text"
             className="mt-12 text-3xl font-black text-white uppercase tracking-[0.2em] text-center px-4"
           >
             INITIALIZING
@@ -763,19 +751,20 @@ export default function MyDataPage() {
           </p>
 
           <div className="mt-8 h-4 w-64 rounded-full border-2 border-white bg-gray-800 p-1">
-            <div 
+            <div
               id="anim-progress"
               className="h-full w-0 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)]"
             ></div>
-          </div>
+          </div >
 
           <div className="absolute bottom-10 left-0 right-0 flex justify-center gap-8 opacity-30">
             <span className="font-mono text-xs text-white">BLOCK: #{listings?.[0]?.id?.slice(0, 8) || '000000'}</span>
             <span className="font-mono text-xs text-white">HASH: 0x{blobId?.slice(0, 4) || '0000'}...{blobId?.slice(-4) || '0000'}</span>
             <span className="font-mono text-xs text-white">NODE: SUI-TESTNET-01</span>
           </div>
-        </div>
-      )}
+        </div >
+      )
+      }
     </>
   );
 }
