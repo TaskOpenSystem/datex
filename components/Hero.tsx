@@ -62,12 +62,6 @@ export default function Hero() {
         </div>
       </div>
       <div className="relative z-10 text-center max-w-5xl px-4 flex flex-col items-center">
-        <div className="mb-4 inline-flex items-center gap-2 px-4 py-2 bg-white/50 dark:bg-black/50 border border-black dark:border-white rounded-full backdrop-blur-sm">
-          <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
-          <span className="text-xs font-bold tracking-widest uppercase">
-            Powered by Sui Ecosystem
-          </span>
-        </div>
         <h1 className="font-display text-[5rem] md:text-[9rem] leading-[0.85] tracking-tighter uppercase mb-6 transform -rotate-1">
           <span className="block">Data</span>
           <span className="block text-primary">Exchange</span>
