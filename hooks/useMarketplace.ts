@@ -38,14 +38,21 @@ export function useAllListings() {
     queryFn: async () => {
       if (!registryId) return [];
 
+      console.log('[useAllListings] Fetching registry:', registryId);
+
       // 1. Get the registry object to find all listing IDs
       const registry = await suiClient.getObject({
         id: registryId,
         options: { showContent: true },
       });
 
-      const content = registry.data?.content as { fields?: { listings?: { fields?: { contents?: Array<{ id?: string }> } } } } | undefined;
-      const listingIds: string[] = (content?.fields?.listings?.fields?.contents?.map((item) => item.id).filter((id): id is string => !!id) || []);
+      console.log('[useAllListings] Registry data:', registry.data);
+
+      // VecSet<ID> stores IDs as an array of strings directly
+      const content = registry.data?.content as { fields?: { listings?: { fields?: { contents?: string[] } } } } | undefined;
+      const listingIds: string[] = (content?.fields?.listings?.fields?.contents || []).filter((id): id is string => !!id && id.startsWith('0x'));
+
+      console.log('[useAllListings] Found listings:', listingIds.length, listingIds);
 
       if (listingIds.length === 0) return [];
 
@@ -54,6 +61,8 @@ export function useAllListings() {
         ids: listingIds,
         options: { showContent: true },
       });
+
+      console.log('[useAllListings] Fetched objects:', objects.length);
 
       return objects
         .map((obj) => {
@@ -75,6 +84,7 @@ export function useAllListings() {
         .filter((listing): listing is DatasetListing => listing !== null);
     },
     enabled: !!registryId,
+    refetchInterval: 30000,
   });
 }
 
@@ -100,7 +110,13 @@ export function useListDataset() {
         throw new Error('Registry not found');
       }
 
+      console.log('=== CREATE LISTING START ===');
+      console.log('Input:', input);
+      console.log('Registry ID:', registryId);
+      console.log('Account:', account.address);
+
       const priceInMIST = BigInt(Math.floor(input.priceSUI * Number(MIST_PER_SUI)));
+      console.log('Price in MIST:', priceInMIST.toString());
 
       // Build PTB with optimized structure
       const tx = new Transaction();
@@ -109,6 +125,7 @@ export function useListDataset() {
       tx.setGasBudget(10_000_000); // 0.01 SUI - sufficient for single listing
 
       // PTB: Create listing and transfer in single atomic transaction
+      console.log('Creating list_dataset moveCall...');
       const listing = tx.moveCall({
         target: getMarketplaceTarget('list_dataset'),
         arguments: [
@@ -122,17 +139,35 @@ export function useListDataset() {
           tx.pure.u64(input.totalSizeBytes),
         ],
       });
+      console.log('list_dataset moveCall created, listing result:', listing);
 
-      // Transfer listing object to sender
-      tx.transferObjects([listing], account.address);
+      // Share listing object publicly so anyone can purchase
+      console.log('Creating public_share_object moveCall...');
+      console.log('Type argument:', `${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::DatasetListing`);
+      tx.moveCall({
+        target: '0x2::transfer::public_share_object',
+        typeArguments: [`${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::DatasetListing`],
+        arguments: [listing],
+      });
+      console.log('public_share_object moveCall added to transaction');
 
+      console.log('Executing transaction...');
       signAndExecute(
         { transaction: tx },
         {
           onSuccess: (result) => {
+            console.log('=== CREATE LISTING SUCCESS ===');
+            console.log('Transaction result:', result);
+            console.log('Digest:', result.digest);
+            console.log('Effects:', result.effects);
             const effects = result.effects as { created?: Array<{ reference: { objectId: string } }> } | undefined;
             const listingId = effects?.created?.[0]?.reference?.objectId || '';
+            console.log('Created listing ID:', listingId);
             onSuccess({ listingId, digest: result.digest });
+          },
+          onError: (error) => {
+            console.error('=== CREATE LISTING ERROR ===');
+            console.error('Error:', error);
           },
         }
       );
@@ -189,8 +224,14 @@ export function useListDataset() {
         listingResults.push(listing);
       }
 
-      // PTB: Batch transfer all listings to sender in single operation
-      tx.transferObjects(listingResults, account.address);
+      // PTB: Batch share all listings publicly
+      for (const listing of listingResults) {
+        tx.moveCall({
+          target: '0x2::transfer::public_share_object',
+          typeArguments: [`${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::DatasetListing`],
+          arguments: [listing],
+        });
+      }
 
       signAndExecute(
         { transaction: tx },
@@ -238,7 +279,11 @@ export function useListDataset() {
         ],
       });
 
-      tx.transferObjects([listing], account.address);
+      tx.moveCall({
+        target: '0x2::transfer::public_share_object',
+        typeArguments: [`${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::DatasetListing`],
+        arguments: [listing],
+      });
 
       return tx;
     },
@@ -267,10 +312,15 @@ export function usePurchaseDataset() {
         throw new Error('Wallet not connected');
       }
 
+      console.log('=== PURCHASE DATASET ===');
+      console.log('Listing:', listing);
+      console.log('Buyer:', account.address);
+
       const tx = new Transaction();
       const [payment] = tx.splitCoins(tx.gas, [tx.pure.u64(listing.price)]);
 
-      tx.moveCall({
+      // Call purchase_dataset and get the PurchaseReceipt
+      const receipt = tx.moveCall({
         target: getMarketplaceTarget('purchase_dataset'),
         arguments: [
           tx.object(listing.id),
@@ -278,14 +328,26 @@ export function usePurchaseDataset() {
           tx.object('0x0000000000000000000000000000000000000000000000000000000000000006'),
         ],
       });
+      console.log('purchase_dataset moveCall created');
+
+      // Transfer PurchaseReceipt to buyer
+      tx.transferObjects([receipt], account.address);
+      console.log('transferObjects receipt to buyer added');
 
       signAndExecute(
         { transaction: tx },
         {
           onSuccess: (result) => {
+            console.log('=== PURCHASE SUCCESS ===');
+            console.log('Result:', result);
             const effects = result.effects as { created?: Array<{ reference: { objectId: string } }> } | undefined;
             const receiptId = effects?.created?.[0]?.reference?.objectId || '';
+            console.log('Receipt ID:', receiptId);
             onSuccess({ receiptId, digest: result.digest });
+          },
+          onError: (error) => {
+            console.error('=== PURCHASE ERROR ===');
+            console.error('Error:', error);
           },
         }
       );
@@ -393,4 +455,195 @@ export function useAccountBalance() {
     enabled: !!account?.address,
     refetchInterval: 10000,
   });
+}
+
+export function usePurchasedDatasets(address?: string) {
+  const suiClient = useSuiClient();
+
+  return useQuery({
+    queryKey: ['purchased-datasets', address],
+    queryFn: async () => {
+      if (!address) return [];
+      
+      const RECEIPT_TYPE = `${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::PurchaseReceipt`;
+      
+      const { data } = await suiClient.getOwnedObjects({
+        owner: address,
+        filter: { StructType: RECEIPT_TYPE },
+        options: { showContent: true, showType: true },
+      });
+
+      return data
+        .map((obj) => {
+          if (!obj.data?.content || obj.data.content.dataType !== 'moveObject') return null;
+          const fields = obj.data.content.fields as Record<string, unknown>;
+          return {
+            id: obj.data.objectId || '',
+            datasetId: (fields.dataset_id as { id: string })?.id || '',
+            buyer: fields.buyer as string,
+            seller: fields.seller as string,
+            price: BigInt(fields.price as string),
+            timestamp: Number(fields.timestamp),
+          };
+        })
+        .filter((receipt): receipt is { id: string; datasetId: string; buyer: string; seller: string; price: bigint; timestamp: number } => receipt !== null);
+    },
+    enabled: !!address,
+    refetchInterval: 10000,
+  });
+}
+
+export function useDownloadDataset() {
+  const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
+  const { data: balance } = useAccountBalance();
+
+  const WALRUS_AGGREGATORS = [
+    'https://aggregator.walrus-testnet.walrus.space',
+    'https://blob-rpc-testnet.walrus.space',
+  ];
+
+  // Helper to fetch from Walrus using HTTP API
+  const fetchFromWalrusAndDownload = useCallback(async (blobId: string, onSuccess: (data: Uint8Array) => void, onError: (err: Error) => void) => {
+    try {
+      console.log('[Walrus] Fetching blob:', blobId);
+
+      // Check if blobId is a hex string (starts with 0x)
+      if (blobId.startsWith('0x')) {
+        console.log('[Walrus] Hex blobId detected - this is a content hash, not a Walrus blob ID');
+        onError(new Error('This listing has incorrect blobId format. The file needs to be re-uploaded to get a valid Walrus blob ID.'));
+        return;
+      }
+
+      // Try multiple aggregators
+      let bytes: Uint8Array | null = null;
+      let lastError: Error | null = null;
+
+      for (const aggregator of WALRUS_AGGREGATORS) {
+        try {
+          console.log('[Walrus] Trying aggregator:', aggregator);
+          const response = await fetch(`${aggregator}/v1/blobs/${blobId}`, {
+            method: 'GET',
+            signal: AbortSignal.timeout(30000),
+          });
+
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer();
+            bytes = new Uint8Array(arrayBuffer);
+            console.log('[Walrus] Success! Size:', bytes.length);
+            break;
+          } else if (response.status !== 404) {
+            const text = await response.text();
+            console.log('[Walrus] Error from aggregator:', response.status, text);
+          }
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error('Connection error');
+          console.log('[Walrus] Connection error:', lastError.message);
+        }
+      }
+
+      if (bytes) {
+        onSuccess(bytes);
+      } else {
+        onError(new Error('Blob not found on any Walrus aggregator. The blob may have expired or been deleted.'));
+      }
+    } catch (err) {
+      console.error('[Walrus] Error:', err);
+      onError(err instanceof Error ? err : new Error('Failed to fetch from Walrus'));
+    }
+  }, []);
+
+  const download = useCallback(
+    async (
+      listing: DatasetListing,
+      buyerAddress: string,
+      txDigest: string,
+      onSuccess: (data: Uint8Array) => void,
+      onError: (error: Error) => void
+    ) => {
+      try {
+        // Try enclave first
+        const response = await fetch(`${marketplaceConfig.enclaveUrl}/process_data`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            payload: {
+              dataset_id: listing.id,
+              blob_id: listing.blobId,
+              payment_tx_digest: txDigest,
+              buyer_address: buyerAddress,
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          // Fallback to direct Walrus
+          console.log('[Download] Enclave failed, trying Walrus...');
+          await fetchFromWalrusAndDownload(listing.blobId, onSuccess, onError);
+          return;
+        }
+
+        const result = await response.json();
+        
+        if (result.error) {
+          throw new Error(result.error);
+        }
+
+        const dataStr = result.data?.decrypted_data || result.data;
+        if (dataStr) {
+          const binaryStr = atob(dataStr);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          onSuccess(bytes);
+        } else {
+          throw new Error('No data returned');
+        }
+      } catch (err) {
+        onError(err instanceof Error ? err : new Error('Download failed'));
+      }
+    },
+    [fetchFromWalrusAndDownload]
+  );
+
+  const downloadFile = useCallback(
+    async (
+      listing: DatasetListing,
+      buyerAddress: string,
+      txDigest: string,
+      filename: string
+    ) => {
+      return new Promise<boolean>((resolve, reject) => {
+        download(
+          listing,
+          buyerAddress,
+          txDigest,
+          (data) => {
+            const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+            const blob = new Blob([arrayBuffer as ArrayBuffer], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            resolve(true);
+          },
+          (err) => {
+            reject(err);
+          }
+        );
+      });
+    },
+    [download]
+  );
+
+  return {
+    download,
+    downloadFile,
+    isPending,
+    balance,
+  };
 }
