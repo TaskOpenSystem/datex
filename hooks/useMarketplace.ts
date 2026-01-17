@@ -78,11 +78,19 @@ export function useAllListings() {
   });
 }
 
+/**
+ * PTB-optimized hook for creating dataset listings
+ * Uses Programmable Transaction Blocks for efficient on-chain operations
+ */
 export function useListDataset() {
   const account = useCurrentAccount();
   const { mutate: signAndExecute, isPending, error } = useSignAndExecuteTransaction();
   const { data: registryId } = useRegistry();
 
+  /**
+   * Create a single listing using PTB
+   * Optimized with proper gas budget estimation
+   */
   const createListing = useCallback(
     (input: CreateListingInput, onSuccess: (result: CreateListingResult) => void) => {
       if (!account) {
@@ -92,12 +100,15 @@ export function useListDataset() {
         throw new Error('Registry not found');
       }
 
-      // Convert SUI to MIST (1 SUI = 10^9 MIST)
       const priceInMIST = BigInt(Math.floor(input.priceSUI * Number(MIST_PER_SUI)));
 
+      // Build PTB with optimized structure
       const tx = new Transaction();
+      
+      // Set gas budget based on operation complexity
+      tx.setGasBudget(10_000_000); // 0.01 SUI - sufficient for single listing
 
-      // Create the listing object - note: String types use tx.pure.string()
+      // PTB: Create listing and transfer in single atomic transaction
       const listing = tx.moveCall({
         target: getMarketplaceTarget('list_dataset'),
         arguments: [
@@ -112,8 +123,8 @@ export function useListDataset() {
         ],
       });
 
-      // Transfer the listing to the sender
-      tx.transferObjects([listing], tx.pure.address(account.address));
+      // Transfer listing object to sender
+      tx.transferObjects([listing], account.address);
 
       signAndExecute(
         { transaction: tx },
@@ -129,8 +140,115 @@ export function useListDataset() {
     [account, registryId, signAndExecute]
   );
 
+  /**
+   * PTB Batch: Create multiple listings in a single transaction
+   * Significantly reduces gas costs when listing multiple datasets
+   */
+  const createBatchListings = useCallback(
+    (
+      inputs: CreateListingInput[],
+      onSuccess: (results: CreateListingResult[]) => void
+    ) => {
+      if (!account) {
+        throw new Error('Wallet not connected');
+      }
+      if (!registryId) {
+        throw new Error('Registry not found');
+      }
+      if (inputs.length === 0) {
+        throw new Error('No listings to create');
+      }
+
+      const tx = new Transaction();
+      
+      // Dynamic gas budget based on number of listings
+      // Base: 10M MIST + 5M per additional listing
+      const gasBudget = 10_000_000 + (inputs.length - 1) * 5_000_000;
+      tx.setGasBudget(gasBudget);
+
+      const listingResults: ReturnType<typeof tx.moveCall>[] = [];
+
+      // PTB: Batch all listing creations
+      for (const input of inputs) {
+        const priceInMIST = BigInt(Math.floor(input.priceSUI * Number(MIST_PER_SUI)));
+
+        const listing = tx.moveCall({
+          target: getMarketplaceTarget('list_dataset'),
+          arguments: [
+            tx.object(registryId),
+            tx.pure.string(input.blobId),
+            tx.pure.string(input.encryptedObject),
+            tx.pure.string(input.name),
+            tx.pure.string(input.description),
+            tx.pure.u64(priceInMIST),
+            tx.pure.u64(input.previewSizeBytes),
+            tx.pure.u64(input.totalSizeBytes),
+          ],
+        });
+
+        listingResults.push(listing);
+      }
+
+      // PTB: Batch transfer all listings to sender in single operation
+      tx.transferObjects(listingResults, account.address);
+
+      signAndExecute(
+        { transaction: tx },
+        {
+          onSuccess: (result) => {
+            const effects = result.effects as { created?: Array<{ reference: { objectId: string } }> } | undefined;
+            const createdIds = effects?.created?.map((obj) => obj.reference.objectId) || [];
+            
+            const results: CreateListingResult[] = createdIds.map((id) => ({
+              listingId: id,
+              digest: result.digest,
+            }));
+            
+            onSuccess(results);
+          },
+        }
+      );
+    },
+    [account, registryId, signAndExecute]
+  );
+
+  /**
+   * Build a PTB transaction without executing (for inspection/dry-run)
+   */
+  const buildListingTransaction = useCallback(
+    (input: CreateListingInput): Transaction | null => {
+      if (!account || !registryId) return null;
+
+      const priceInMIST = BigInt(Math.floor(input.priceSUI * Number(MIST_PER_SUI)));
+
+      const tx = new Transaction();
+      tx.setGasBudget(10_000_000);
+
+      const listing = tx.moveCall({
+        target: getMarketplaceTarget('list_dataset'),
+        arguments: [
+          tx.object(registryId),
+          tx.pure.string(input.blobId),
+          tx.pure.string(input.encryptedObject),
+          tx.pure.string(input.name),
+          tx.pure.string(input.description),
+          tx.pure.u64(priceInMIST),
+          tx.pure.u64(input.previewSizeBytes),
+          tx.pure.u64(input.totalSizeBytes),
+        ],
+      });
+
+      tx.transferObjects([listing], account.address);
+
+      return tx;
+    },
+    [account, registryId]
+  );
+
   return {
     createListing,
+    createBatchListings,
+    buildListingTransaction,
     isPending,
     error,
   };

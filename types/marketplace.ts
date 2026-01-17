@@ -137,6 +137,11 @@ export interface CreateListingResult {
   digest: string;
 }
 
+export interface BatchCreateListingResult {
+  listings: CreateListingResult[];
+  totalGasUsed?: bigint;
+}
+
 export interface PurchaseResult {
   receiptId: string;
   digest: string;
