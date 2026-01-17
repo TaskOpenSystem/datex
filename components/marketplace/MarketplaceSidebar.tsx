@@ -17,6 +17,9 @@ export default function MarketplaceSidebar() {
   const account = useCurrentAccount();
   const { mutate: disconnect } = useDisconnectWallet();
   const suiClient = useSuiClient();
+  
+  // Copy address state
+  const [copied, setCopied] = useState(false);
 
   // Get filter state from context
   const {
@@ -81,6 +84,24 @@ export default function MarketplaceSidebar() {
   const handleDisconnect = () => {
     sessionStorage.clear();
     disconnect();
+  };
+
+  // Copy address to clipboard
+  const handleCopyAddress = async () => {
+    if (!account?.address) return;
+    try {
+      await navigator.clipboard.writeText(account.address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy address:", err);
+    }
+  };
+
+  // Open SuiVision explorer
+  const openSuiVision = () => {
+    if (!account?.address) return;
+    window.open(`https://suivision.xyz/account/${account.address}`, "_blank");
   };
 
   // Price slider handlers
@@ -347,19 +368,39 @@ export default function MarketplaceSidebar() {
         {account ? (
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full border-2 border-ink bg-gradient-to-br from-primary to-accent-lime flex items-center justify-center">
+              <div className="h-10 w-10 rounded-full border-2 border-ink bg-linear-to-br from-primary to-accent-lime flex items-center justify-center">
                 <span className="material-symbols-outlined text-white" style={{ fontSize: "20px" }}>
                   account_balance_wallet
                 </span>
               </div>
-              <div className="flex flex-col flex-1 min-w-0">
-                <span className="text-sm font-bold text-ink truncate">
-                  {suinsName ? `@${suinsName}` : formatAddress(account.address)}
-                </span>
+              <div 
+                className="flex flex-col flex-1 min-w-0 cursor-pointer group"
+                onClick={handleCopyAddress}
+                title="Click to copy address"
+              >
+                <div className="flex items-center gap-1">
+                  <span className="text-sm font-bold text-ink truncate group-hover:text-primary transition-colors">
+                    {suinsName ? `@${suinsName}` : formatAddress(account.address)}
+                  </span>
+                  <span className="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors" style={{ fontSize: "14px" }}>
+                    {copied ? "check" : "content_copy"}
+                  </span>
+                </div>
                 {suinsName && (
-                  <span className="text-xs text-gray-500 truncate">{formatAddress(account.address)}</span>
+                  <span className="text-xs text-gray-500 truncate group-hover:text-primary transition-colors">
+                    {formatAddress(account.address)}
+                  </span>
                 )}
               </div>
+              <button
+                onClick={openSuiVision}
+                className="h-8 w-8 rounded-lg border-2 border-ink bg-white flex items-center justify-center hover:bg-accent-lime transition-colors shrink-0"
+                title="View on SuiVision"
+              >
+                <span className="material-symbols-outlined text-ink" style={{ fontSize: "18px" }}>
+                  open_in_new
+                </span>
+              </button>
             </div>
 
             {/* Balances */}
@@ -387,7 +428,7 @@ export default function MarketplaceSidebar() {
             <p className="text-sm font-bold text-gray-600">Connect your wallet to get started</p>
             <ConnectButton
               connectText="Connect Wallet"
-              className="!w-full !rounded-lg !border-2 !border-ink !bg-primary !px-4 !py-3 !font-bold !text-white !shadow-hard-sm hover:!-translate-y-1 !transition-transform"
+              className="w-full! rounded-lg! border-2! border-ink! bg-primary! px-4! py-3! font-bold! text-white! shadow-hard-sm! hover:-translate-y-1! transition-transform!"
             />
           </div>
         )}
