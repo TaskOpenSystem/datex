@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@lamdanghoang/sui-pay-wal": "^0.1.1",
     "@mysten/bcs": "^1.9.2",
     "@mysten/dapp-kit": "^0.20.0",
     "@mysten/enoki": "^0.13.0",

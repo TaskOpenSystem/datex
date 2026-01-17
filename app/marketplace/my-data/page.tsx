@@ -11,6 +11,7 @@ import { Transaction } from '@mysten/sui/transactions';
 import { marketplaceConfig, MIST_PER_SUI } from '@/config/marketplace';
 import { getMarketplaceTarget } from '@/lib/marketplace';
 import { encryptForMarketplace } from '@/lib/seal';
+import { useWalrusPayment } from '@/hooks/useWalrusPayment';
 
 // Type for Walrus write blob flow (raw bytes, no file metadata)
 interface WalrusBlobFlow {
@@ -59,6 +60,7 @@ export default function MyDataPage() {
   const { data: listings, isLoading, refetch } = useOwnedListings(account?.address);
   const { data: balance } = useAccountBalance();
   const { data: purchases, isLoading: isPurchasesLoading } = usePurchasedDatasets(account?.address);
+  const { ensureWalBalance, getStorageCost, checkBalance, formatWal, formatSui, getPrices, isLoading: isWalrusLoading } = useWalrusPayment();
 
   const [activeTab, setActiveTab] = useState<Tab>('uploads');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -93,6 +95,13 @@ export default function MyDataPage() {
       details,
       timestamp: new Date().toLocaleTimeString(),
     }]);
+  };
+
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const addLogWithDelay = async (step: string, status: TransactionLog['status'], message: string, details?: string, delayMs: number = 300) => {
+    await delay(delayMs);
+    addLog(step, status, message, details);
   };
 
   const createFlow = useCallback(async (data: Uint8Array, _identifier: string) => {
@@ -167,16 +176,57 @@ export default function MyDataPage() {
         encryptedObj = encryptResult.encryptedHex.slice(0, 128); // Store first 128 chars as reference
         
         console.log('Encrypted data size:', dataToUpload.length);
-        addLog('encode', 'success', 'File encrypted with Seal');
+        await addLogWithDelay('encode', 'success', 'File encrypted with Seal');
       } catch (encryptError) {
         console.warn('Seal encryption failed, uploading unencrypted:', encryptError);
         // Fallback: upload unencrypted if Seal fails
         dataToUpload = uint8Array;
         encryptedObj = bytesToHex(uint8Array).slice(0, 128);
-        addLog('encode', 'success', 'File prepared (unencrypted fallback)');
+        await addLogWithDelay('encode', 'success', 'File prepared (unencrypted fallback)');
       }
 
       setEncryptedObject(encryptedObj);
+
+      // Step 0.5: Check WAL balance for Walrus storage cost (auto-swap SUI → WAL if needed)
+      setCurrentStep('register');
+      const storageCost = getStorageCost(dataToUpload.length, 3);
+      const walCostFormatted = formatWal(storageCost.totalCostFrost);
+      
+      // Get swap prices to show SUI equivalent
+      let suiNeeded = 0;
+      let suiEquivalent = '';
+      try {
+        const prices = await getPrices();
+        if (prices) {
+          const walAmount = Number(storageCost.totalCostFrost) / 1e9;
+          suiNeeded = walAmount * (prices.walUsd / prices.suiUsd) * 1.1;
+          suiEquivalent = ` (~${suiNeeded.toFixed(6)} SUI)`;
+        }
+      } catch {
+        // Prices unavailable
+      }
+      
+      // Check current WAL balance first
+      const balanceCheck = await checkBalance(dataToUpload.length, 3);
+      const hasEnoughWal = balanceCheck?.sufficient ?? false;
+      
+      if (hasEnoughWal) {
+        await addLogWithDelay('register', 'processing', `Storage cost: ${walCostFormatted} WAL (paying with WAL)`);
+      } else {
+        await addLogWithDelay('register', 'processing', `Storage cost: ${walCostFormatted} WAL → Swapping ${suiNeeded.toFixed(6)} SUI to WAL...`);
+      }
+      
+      const walResult = await ensureWalBalance(dataToUpload.length, 3);
+      if (!walResult.success) {
+        await addLogWithDelay('register', 'error', `Need ${walCostFormatted} WAL${suiEquivalent}. ${walResult.error}`);
+        setUploadError(`Insufficient balance. Need ${walCostFormatted} WAL${suiEquivalent}.`);
+        setIsProcessing(false);
+        return;
+      }
+      
+      if (!hasEnoughWal) {
+        await addLogWithDelay('register', 'success', `Swapped SUI → WAL. Balance: ${formatWal(walResult.walBalance)} WAL`);
+      }
 
       // Step 1: Create flow with encrypted data
       const flow = await createFlow(dataToUpload, file.name);
@@ -184,8 +234,7 @@ export default function MyDataPage() {
       await flow.encode();
 
       // Step 2: Register blob on-chain
-      setCurrentStep('register');
-      addLog('register', 'processing', 'Registering blob on Sui...');
+      await addLogWithDelay('register', 'processing', 'Registering blob on Sui...');
 
       const registerTx = flow.register({
         epochs: 3,
@@ -198,18 +247,18 @@ export default function MyDataPage() {
         {
           onSuccess: async (result) => {
             try {
-              addLog('register', 'success', 'Blob registered', `TX: ${result.digest.slice(0, 16)}...`);
+              await addLogWithDelay('register', 'success', 'Blob registered', `TX: ${result.digest.slice(0, 16)}...`);
 
               // Step 3: Upload to Walrus storage nodes
               setCurrentStep('upload');
-              addLog('upload', 'processing', 'Uploading to Walrus...');
+              await addLogWithDelay('upload', 'processing', 'Uploading to Walrus...');
 
               await flow.upload({ digest: result.digest });
-              addLog('upload', 'success', 'Uploaded to Walrus storage nodes');
+              await addLogWithDelay('upload', 'success', 'Uploaded to Walrus storage nodes');
 
               // Step 4: Certify blob
               setCurrentStep('certify');
-              addLog('certify', 'processing', 'Certifying blob on Sui...');
+              await addLogWithDelay('certify', 'processing', 'Certifying blob on Sui...');
 
               const certifyTx = flow.certify();
 
@@ -217,7 +266,7 @@ export default function MyDataPage() {
                 { transaction: certifyTx },
                 {
                   onSuccess: async (certifyResult) => {
-                    addLog('certify', 'success', 'Blob certified', `TX: ${certifyResult.digest.slice(0, 16)}...`);
+                    await addLogWithDelay('certify', 'success', 'Blob certified', `TX: ${certifyResult.digest.slice(0, 16)}...`);
 
                     // Step 5: Get blobId from getBlob (for raw blob upload)
                     let walrusBlobId = '';
@@ -227,7 +276,7 @@ export default function MyDataPage() {
                       walrusBlobId = blobInfo.blobId || '';
                       if (walrusBlobId) {
                         setBlobId(walrusBlobId);
-                        addLog('complete', 'success', 'Blob ID obtained', `ID: ${walrusBlobId.slice(0, 20)}...`);
+                        await addLogWithDelay('complete', 'success', 'Blob ID obtained', `ID: ${walrusBlobId.slice(0, 20)}...`);
                       }
                     } catch (listError) {
                       console.error('[Walrus] getBlob error:', listError);
@@ -236,8 +285,8 @@ export default function MyDataPage() {
                     // Step 6: Create listing
                     await handleCreateListing(price, walrusBlobId, encryptedObj);
                   },
-                  onError: (err) => {
-                    addLog('certify', 'error', err.message || 'Certification failed');
+                  onError: async (err) => {
+                    await addLogWithDelay('certify', 'error', err.message || 'Certification failed');
                     setUploadError(err.message || 'Certification failed');
                     setIsProcessing(false);
                   },
@@ -245,13 +294,13 @@ export default function MyDataPage() {
               );
             } catch (err) {
               const errorMsg = err instanceof Error ? err.message : 'Upload failed';
-              addLog('upload', 'error', errorMsg);
+              await addLogWithDelay('upload', 'error', errorMsg);
               setUploadError(errorMsg);
               setIsProcessing(false);
             }
           },
-          onError: (err) => {
-            addLog('register', 'error', err.message || 'Registration failed');
+          onError: async (err) => {
+            await addLogWithDelay('register', 'error', err.message || 'Registration failed');
             setUploadError(err.message || 'Registration failed');
             setIsProcessing(false);
           },
@@ -259,7 +308,7 @@ export default function MyDataPage() {
       );
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to prepare upload';
-      addLog('encode', 'error', errorMsg);
+      await addLogWithDelay('encode', 'error', errorMsg);
       setUploadError(errorMsg);
       setIsProcessing(false);
     }
@@ -270,7 +319,7 @@ export default function MyDataPage() {
 
     try {
       setCurrentStep('listing');
-      addLog('listing', 'processing', 'Creating listing on marketplace...');
+      await addLogWithDelay('listing', 'processing', 'Creating listing on marketplace...');
 
       const priceInMIST = BigInt(Math.floor(price * Number(MIST_PER_SUI)));
       const registryId = marketplaceConfig.registryId;
@@ -310,14 +359,14 @@ export default function MyDataPage() {
       signAndExecute(
         { transaction: tx },
         {
-          onSuccess: (result) => {
+          onSuccess: async (result) => {
             console.log('=== CREATE LISTING SUCCESS ===');
             console.log('Result:', result);
             const effects = result.effects as { created?: Array<{ reference: { objectId: string } }> } | undefined;
             const newListingId = effects?.created?.[0]?.reference?.objectId || result.digest;
             console.log('New listing ID:', newListingId);
 
-            addLog('listing', 'success', 'Listing created!', `ID: ${newListingId.slice(0, 16)}...`);
+            await addLogWithDelay('listing', 'success', 'Listing created!', `ID: ${newListingId.slice(0, 16)}...`);
             setListingId(newListingId);
 
             setCurrentStep('complete');
@@ -325,10 +374,10 @@ export default function MyDataPage() {
             setProcessingType('create');
             setIsProcessing(false);
           },
-          onError: (err) => {
+          onError: async (err) => {
             console.error('=== CREATE LISTING ERROR ===');
             console.error('Error:', err);
-            addLog('listing', 'error', err.message || 'Failed to create listing');
+            await addLogWithDelay('listing', 'error', err.message || 'Failed to create listing');
             setUploadError(err.message || 'Failed to create listing');
             setIsProcessing(false);
           },
@@ -338,7 +387,7 @@ export default function MyDataPage() {
       console.error('=== CREATE LISTING CATCH ERROR ===');
       console.error('Error:', err);
       const errorMsg = err instanceof Error ? err.message : 'Failed to create listing';
-      addLog('listing', 'error', errorMsg);
+      await addLogWithDelay('listing', 'error', errorMsg);
       setUploadError(errorMsg);
       setIsProcessing(false);
     }
