@@ -100,7 +100,7 @@ export default function MarketplacePage() {
             </div>
             <h1 className="text-4xl font-black text-ink uppercase tracking-tight">Dataset Marketplace</h1>
             <p className="text-gray-500 mt-1">Discover and purchase high-quality datasets</p>
-            
+
             {/* Debug info */}
             <div className="mt-2 flex items-center gap-2 text-xs">
               <span className={isLoading ? 'text-blue-600' : 'text-green-600'}>
@@ -109,13 +109,13 @@ export default function MarketplacePage() {
               {error && (
                 <span className="text-red-600">Error: {error.message}</span>
               )}
-              <button 
+              <button
                 onClick={() => refetch()}
                 className="text-primary hover:underline"
               >
                 ↻ Refresh
               </button>
-              <button 
+              <button
                 onClick={debugListings}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -448,15 +448,6 @@ export default function MarketplacePage() {
           </div>
         </div>
       )}
-
-      <footer className="mt-auto border-t-2 border-ink pt-8 flex flex-col items-center gap-4 text-center opacity-60 pb-8 bg-[#f6f7f9]">
-        <p className="text-sm font-bold">Powered by Sui Network</p>
-        <div className="flex gap-4">
-          <span className="material-symbols-outlined">dataset</span>
-          <span className="material-symbols-outlined">security</span>
-          <span className="material-symbols-outlined">hub</span>
-        </div>
-      </footer>
     </>
   );
 }
