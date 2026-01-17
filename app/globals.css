@@ -1,7 +1,6 @@
 @import "tailwindcss";
 
 @plugin "tailwindcss-animate";
-@import "tw-animate-css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -38,8 +37,7 @@
   --shadow-hard: 4px 4px 0px 0px #101618;
   --shadow-hard-sm: 2px 2px 0px 0px #101618;
   --shadow-hard-lg: 8px 8px 0px 0px #101618;
-
-
+  <<<<<<< HEAD=======>>>>>>>main
   /* Border Radius */
   --radius: 0.5rem;
   --radius-large: 2rem;
@@ -276,10 +274,10 @@ select,
 }
 
 .material-symbols-outlined {
-  font-family: 'Material Symbols Outlined';
+  font-family: "Material Symbols Outlined";
   font-weight: normal;
   font-style: normal;
-  font-size: 24px;
+  /* font-size: 24px; */
   display: inline-block;
   line-height: 1;
   text-transform: none;
@@ -338,28 +336,28 @@ select,
   }
 
   30% {
-    background-color: #FFD600;
+    background-color: #ffd600;
     color: black;
     transform: scale(1.05);
     box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 0.4);
   }
 
   45% {
-    background-color: #00D68F;
+    background-color: #00d68f;
     color: black;
     transform: scale(0.95);
     box-shadow: 2px 2px 0px 0px rgba(0, 0, 0, 0.2);
   }
 
   55% {
-    background-color: #00D68F;
+    background-color: #00d68f;
     color: black;
     transform: scale(1.05);
     box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 0.4);
   }
 
   70% {
-    background-color: #FFD600;
+    background-color: #ffd600;
     color: black;
     transform: scale(1.05);
     box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 0.4);

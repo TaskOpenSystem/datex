@@ -1,6 +1,7 @@
 "use client";
 
 import { WalletConnectButton } from "./WalletConnectButton";
+import Link from "next/link";
 
 export default function Navbar() {
   return (
@@ -13,15 +14,15 @@ export default function Navbar() {
           </span>
         </div>
         <div className="hidden md:flex gap-8 font-semibold text-sm uppercase tracking-wider">
-          <a className="hover:text-primary transition-colors" href="/">
+          <Link className="hover:text-primary transition-colors" href="/">
             Home
-          </a>
-          <a className="hover:text-primary transition-colors" href="/marketplace">
+          </Link>
+          <Link className="hover:text-primary transition-colors" href="/marketplace">
             Marketplace
-          </a>
-          <a className="hover:text-primary transition-colors" href="#">
+          </Link>
+          <Link className="hover:text-primary transition-colors" href="#">
             About
-          </a>
+          </Link>
         </div>
         <div className="flex gap-3">
           <WalletConnectButton />

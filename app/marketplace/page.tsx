@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import MarketplaceHeader from '@/components/marketplace/MarketplaceHeader';
 import FeaturedCollections from '@/components/marketplace/FeaturedCollections';
 import AssetCard from '@/components/marketplace/AssetCard';
-import DataDetail from '@/components/marketplace/DataDetail';
 import { DATA_ASSETS } from '@/constants/marketplace';
 import { DataAsset, SortOption } from '@/types/marketplace';
 import { useMarketplaceFilterContext } from '@/contexts/MarketplaceFilterContext';
+import DataDetail from '@/components/marketplace/DataDetail';
 
 const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'newest', label: 'Newest' },
@@ -17,6 +18,7 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
 ];
 
 export default function MarketplacePage() {
+  const router = useRouter();
   const [selectedAsset, setSelectedAsset] = useState<DataAsset | null>(null);
   const [showSortDropdown, setShowSortDropdown] = useState(false);
 
