@@ -10,6 +10,7 @@ export default function Home() {
     <div className="bg-background-light dark:bg-background-dark text-black dark:text-white font-body overflow-x-hidden transition-colors duration-300">
       <Navbar />
       <Hero />
+      <CardsSection />
       <MarqueeSection text="GET DATA • OWN DATA • SELL DATA •" />
       <FeaturesSection />
       <MarqueeSection
@@ -17,7 +18,7 @@ export default function Home() {
         text="JOIN THE REVOLUTION • UNLOCK VALUE •"
         bgColor="bg-black"
       />
-      <CardsSection />
+
       <Footer />
     </div>
   );

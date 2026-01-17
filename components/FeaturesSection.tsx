@@ -35,15 +35,9 @@ export default function FeaturesSection() {
               src="/walrus.svg"
             />
           </div>
-          <div className="absolute top-10 right-10 text-black text-6xl animate-bounce hidden md:block">
-            <span className="material-icons">monetization_on</span>
-          </div>
         </div>
         <div className="md:col-span-5 bg-slush-purple rounded-large border-4 border-black p-8 flex flex-col justify-between relative overflow-hidden group">
           <div className="z-10">
-            <div className="bg-white border-2 border-black w-12 h-12 rounded-full flex items-center justify-center mb-6">
-              <span className="material-icons text-black">touch_app</span>
-            </div>
             <h3 className="font-display text-4xl md:text-5xl text-white uppercase leading-none mb-4 drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]">
               Simple, Direct
               <br />
@@ -80,68 +74,82 @@ export default function FeaturesSection() {
             </div>
           </div>
         </div>
-        <div className="md:col-span-12 bg-background-light dark:bg-gray-900 rounded-large border-4 border-black dark:border-gray-700 p-8 md:p-12 relative overflow-hidden">
-          <div className="grid md:grid-cols-2 gap-10 items-center">
-            <div>
-              <div className="inline-block bg-slush-green px-3 py-1 rounded-full border border-black mb-4">
-                <span className="font-bold text-xs uppercase text-black">
-                  Powered by Sui
-                </span>
+
+        <div className="md:col-span-12">
+          {/* Header */}
+          <div className="text-center mb-16 mt-20">
+            {/* <div className="inline-block bg-slush-green px-3 py-1 rounded-full border border-black mb-4">
+              <span className="font-bold text-xs uppercase text-black">
+                Powered by Sui
+              </span>
+            </div> */}
+            <h3 className="font-display text-5xl md:text-6xl uppercase leading-none dark:text-white">
+              Built for <br />
+              Speed & Scale
+            </h3>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6 items-start">
+            {/* Left Column */}
+            <div className="flex flex-col gap-8">
+              {/* Walrus */}
+              <div className="bg-slush-yellow p-6 rounded-large border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform">
+                <div className="w-12 h-12 mb-4 rounded-full border-2 border-black overflow-hidden bg-white">
+                  <img src="/walrus.svg" alt="Walrus" className="w-full h-full object-cover" />
+                </div>
+                <h4 className="font-display text-2xl uppercase mb-2 text-black">Walrus Storage</h4>
+                <p className="text-black font-medium">
+                  Precise, censorship-resistant storage optimized for large datasets. Ensures your data is always available and secure at low cost.
+                </p>
               </div>
-              <h3 className="font-display text-5xl md:text-6xl uppercase leading-none mb-6 dark:text-white">
-                Built for <br />
-                Speed & Scale
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 text-lg mb-8 max-w-md">
-                Leveraging the power of Nautilus for transaction speed, Walrus
-                for decentralized storage, and Seal for top-tier encryption.
-              </p>
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700">
-                  <span className="material-icons text-blue-500">water</span>
-                  <span className="font-bold dark:text-white">Walrus</span>
+
+              {/* Sui */}
+              <div className="bg-primary p-6 rounded-large border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform">
+                <div className="w-12 h-12 mb-4 rounded-full border-2 border-black overflow-hidden bg-white flex items-center justify-center">
+                  <img src="/sui.svg" alt="Sui" className="w-8 h-8 object-contain" />
                 </div>
-                <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700">
-                  <span className="material-icons text-purple-500">
-                    verified_user
-                  </span>
-                  <span className="font-bold dark:text-white">Seal</span>
+                <h4 className="font-display text-2xl uppercase mb-2 text-white">Sui Layer 1</h4>
+                <p className="text-white font-medium">
+                  High-performance blockchain with infinite horizontal scalability. Enables instant finality and ultra-low gas fees for seamless operations.
+                </p>
+              </div>
+
+              {/* Enoki */}
+              <div className="bg-slush-red p-6 rounded-large border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform">
+                <div className="h-8 mb-4 flex items-center">
+                  <img src="/enoki.svg" alt="Enoki" className="h-full w-auto text-black" />
                 </div>
-                <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700">
-                  <span className="material-icons text-orange-500">
-                    rocket_launch
-                  </span>
-                  <span className="font-bold dark:text-white">Nautilus</span>
+                <div className="mt-4">
+                  <h4 className="font-display text-2xl uppercase mb-2 text-black">Frictionless UX</h4>
+                  <p className="text-black font-medium">
+                    Seamless onboarding with zkLogin. Users sign in with Web2 credentials while maintaining full self-custody and security.
+                  </p>
                 </div>
               </div>
             </div>
-            <div className="relative h-64 md:h-full min-h-[300px]">
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-gradient-to-tr from-blue-400 to-purple-500 rounded-full blur-2xl opacity-50"></div>
-              <div className="relative z-10 grid grid-cols-2 gap-4">
-                <div className="bg-white dark:bg-black border-2 border-black dark:border-white p-4 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,1)] transform rotate-3">
-                  <span className="material-icons text-4xl mb-2 text-blue-500">
-                    cloud_queue
-                  </span>
-                  <p className="font-display text-xl uppercase dark:text-white">
-                    Storage
-                  </p>
+
+            {/* Right Column (Offset) */}
+            <div className="flex flex-col gap-8 md:mt-24">
+              {/* Seal */}
+              <div className="bg-slush-purple p-6 rounded-large border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform">
+                <div className="w-12 h-12 mb-4 rounded-full border-2 border-black overflow-hidden bg-white flex items-center justify-center">
+                  <img src="/seal.svg" alt="Seal" className="w-8 h-8 object-contain" />
                 </div>
-                <div className="bg-white dark:bg-black border-2 border-black dark:border-white p-4 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,1)] transform -rotate-2 mt-8">
-                  <span className="material-icons text-4xl mb-2 text-purple-500">
-                    enhanced_encryption
-                  </span>
-                  <p className="font-display text-xl uppercase dark:text-white">
-                    Security
-                  </p>
+                <h4 className="font-display text-2xl uppercase mb-2 text-black">Seal Encryption</h4>
+                <p className="text-black font-medium">
+                  Protects data with threshold encryption and on-chain access control. Secures sensitive assets at rest and in transit.
+                </p>
+              </div>
+
+              {/* Nautilus */}
+              <div className="bg-slush-green p-6 rounded-large border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform">
+                <div className="w-12 h-12 mb-4 flex items-center justify-center rounded-full border-2 border-black bg-white">
+                  <span className="material-icons text-black">visibility</span>
                 </div>
-                <div className="col-span-2 bg-white dark:bg-black border-2 border-black dark:border-white p-4 rounded-xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,1)] transform rotate-1 w-2/3 mx-auto">
-                  <span className="material-icons text-4xl mb-2 text-orange-500">
-                    bolt
-                  </span>
-                  <p className="font-display text-xl uppercase dark:text-white">
-                    Speed
-                  </p>
-                </div>
+                <h4 className="font-display text-2xl uppercase mb-2 text-black">Nautilus Compute</h4>
+                <p className="text-black font-medium">
+                  Executes sensitive logic in Trusted Execution Environments (TEEs) with on-chain verification. Enables private, trustless dataset sample extraction.
+                </p>
               </div>
             </div>
           </div>
