@@ -133,8 +133,12 @@ export function useListDataset() {
         ],
       });
 
-      // Transfer listing object to sender
-      tx.transferObjects([listing], account.address);
+      // Share listing object publicly so anyone can purchase
+      tx.moveCall({
+        target: '0x2::transfer::public_share_object',
+        typeArguments: [`${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::DatasetListing`],
+        arguments: [listing],
+      });
 
       signAndExecute(
         { transaction: tx },
@@ -199,8 +203,14 @@ export function useListDataset() {
         listingResults.push(listing);
       }
 
-      // PTB: Batch transfer all listings to sender in single operation
-      tx.transferObjects(listingResults, account.address);
+      // PTB: Batch share all listings publicly
+      for (const listing of listingResults) {
+        tx.moveCall({
+          target: '0x2::transfer::public_share_object',
+          typeArguments: [`${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::DatasetListing`],
+          arguments: [listing],
+        });
+      }
 
       signAndExecute(
         { transaction: tx },
@@ -248,7 +258,11 @@ export function useListDataset() {
         ],
       });
 
-      tx.transferObjects([listing], account.address);
+      tx.moveCall({
+        target: '0x2::transfer::public_share_object',
+        typeArguments: [`${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::DatasetListing`],
+        arguments: [listing],
+      });
 
       return tx;
     },
