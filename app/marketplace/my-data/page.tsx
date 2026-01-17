@@ -9,6 +9,7 @@ import { getFullnodeUrl } from '@mysten/sui/client';
 import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc';
 import { CreateListingInput } from '@/types/marketplace';
 import gsap from 'gsap';
+import { useWalrusPayment } from '@/hooks/useWalrusPayment';
 
 const walrusModule = {
   walrus: null as null | typeof import('@mysten/walrus').walrus,
@@ -30,6 +31,13 @@ export default function MyDataPage() {
   const { data: listings, isLoading, refetch } = useAllListings();
   const { createListing, isPending: isCreating, error: createError } = useListDataset();
   const { data: balance } = useAccountBalance();
+  const { 
+    isInitialized: isWalPayInitialized,
+    checkBalance,
+    ensureWalBalance,
+    getStorageCost,
+    formatWal,
+  } = useWalrusPayment();
 
   const [activeTab, setActiveTab] = useState<Tab>('uploads');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -126,26 +134,72 @@ export default function MyDataPage() {
     setIsProcessing(true);
     setUploadError('');
 
+    console.log('=== WALRUS UPLOAD: SIGN TRANSACTION ===');
+    console.log('File size:', totalSizeBytes);
+    console.log('Account:', account.address);
+
     try {
+      // Check WAL balance và swap nếu cần
+      if (isWalPayInitialized && totalSizeBytes > 0) {
+        console.log('Checking WAL balance for storage payment...');
+        
+        const storageCost = getStorageCost(totalSizeBytes, 3);
+        console.log('Estimated storage cost:', storageCost.totalWal, 'WAL');
+        
+        const balanceCheck = await checkBalance(totalSizeBytes, 3);
+        
+        if (balanceCheck) {
+          console.log('Balance check:', {
+            sufficient: balanceCheck.sufficient,
+            walNeeded: balanceCheck.walNeeded.toString(),
+            suiNeeded: balanceCheck.suiNeeded?.toString(),
+          });
+
+          if (!balanceCheck.sufficient) {
+            console.log('Insufficient WAL, swapping SUI -> WAL...');
+            
+            const swapResult = await ensureWalBalance(totalSizeBytes, 3);
+            console.log('Swap result:', swapResult);
+            
+            if (!swapResult.success) {
+              console.error('Swap failed:', swapResult.error);
+              setUploadError(`Không đủ WAL để trả phí storage. ${swapResult.error || 'Vui lòng swap SUI sang WAL trước.'}`);
+              setIsProcessing(false);
+              return;
+            }
+            console.log('Swap successful, new WAL balance:', swapResult.walBalance.toString());
+          }
+        }
+      } else {
+        console.log('sui-pay-wal not configured, proceeding without WAL check');
+      }
+
+      console.log('Creating register transaction...');
       const registerTx = flowRef.current.register({
         epochs: 3,
         owner: account.address,
         deletable: false,
       });
 
+      console.log('Signing register transaction...');
       signAndExecute(
         { transaction: registerTx },
         {
           onSuccess: async (result) => {
+            console.log('Register success, digest:', result.digest);
             try {
+              console.log('Uploading to storage nodes...');
               await flowRef.current?.upload({ digest: result.digest });
+              console.log('Upload complete');
 
               const certifyTx = flowRef.current?.certify();
               if (certifyTx) {
+                console.log('Signing certify transaction...');
                 signAndExecute(
                   { transaction: certifyTx },
                   {
                     onSuccess: async () => {
+                      console.log('=== WALRUS UPLOAD COMPLETE ===');
                       if (fileBytes) {
                         const contentHash = Array.from(fileBytes).slice(0, 32).map((b: number) => b.toString(16).padStart(2, '0')).join('');
                         setBlobId('0x' + contentHash);
@@ -153,7 +207,8 @@ export default function MyDataPage() {
                       setUploadStep('complete');
                       setIsProcessing(false);
                     },
-                    onError: () => {
+                    onError: (err) => {
+                      console.error('Certify error:', err);
                       if (fileBytes) {
                         const contentHash = Array.from(fileBytes).slice(0, 32).map((b: number) => b.toString(16).padStart(2, '0')).join('');
                         setBlobId('0x' + contentHash);
@@ -171,7 +226,8 @@ export default function MyDataPage() {
                 setUploadStep('complete');
                 setIsProcessing(false);
               }
-            } catch {
+            } catch (uploadErr) {
+              console.error('Upload/certify error:', uploadErr);
               if (fileBytes) {
                 const contentHash = Array.from(fileBytes).slice(0, 32).map((b: number) => b.toString(16).padStart(2, '0')).join('');
                 setBlobId('0x' + contentHash);
@@ -181,6 +237,7 @@ export default function MyDataPage() {
             }
           },
           onError: (err) => {
+            console.error('Register error:', err);
             setUploadError(err.message || 'Failed to sign transaction');
             setIsProcessing(false);
           },

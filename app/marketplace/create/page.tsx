@@ -7,6 +7,7 @@ import { CreateListingForm } from '@/components/marketplace/CreateListingForm';
 import { formatSize, bytesToHex } from '@/lib/marketplace';
 import { getFullnodeUrl } from '@mysten/sui/client';
 import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc';
+import { useWalrusPayment } from '@/hooks/useWalrusPayment';
 
 const walrusModule = {
   walrus: null as null | typeof import('@mysten/walrus').walrus,
@@ -28,6 +29,14 @@ function isStep(step: UploadStep, target: UploadStep): boolean {
 export default function CreateListingPage() {
   const account = useCurrentAccount();
   const { mutate: signAndExecute, isPending: isSigning } = useSignAndExecuteTransaction();
+  const { 
+    isInitialized: isWalPayInitialized,
+    checkBalance,
+    ensureWalBalance,
+    getStorageCost,
+    formatWal,
+    isLoading: isWalPayLoading,
+  } = useWalrusPayment();
   
   const [uploadStep, setUploadStep] = useState<UploadStep>('form');
   const [file, setFile] = useState<File | null>(null);
@@ -42,6 +51,12 @@ export default function CreateListingPage() {
     previewSizeBytes: 1024 * 1024,
   });
   const [uploadError, setUploadError] = useState('');
+  const [walBalanceStatus, setWalBalanceStatus] = useState<{
+    sufficient: boolean;
+    walNeeded: bigint;
+    suiNeeded?: bigint;
+    storageCost: string;
+  } | null>(null);
   
   const flowRef = useRef<Awaited<ReturnType<typeof createFlow>> | null>(null);
   const registerDigestRef = useRef<string>('');
@@ -115,28 +130,86 @@ export default function CreateListingPage() {
     setIsProcessing(true);
     setUploadError('');
 
+    console.log('=== STEP 2: REGISTER ===');
+    console.log('File size:', totalSizeBytes);
+    console.log('Account:', account.address);
+
     try {
+      // Check WAL balance và swap nếu cần (chỉ khi sui-pay-wal được cấu hình)
+      if (isWalPayInitialized && totalSizeBytes > 0) {
+        console.log('Checking WAL balance for storage payment...');
+        
+        // Hiển thị chi phí storage
+        const storageCost = getStorageCost(totalSizeBytes, 3);
+        console.log('Estimated storage cost:', storageCost.totalWal, 'WAL');
+        
+        const balanceCheck = await checkBalance(totalSizeBytes, 3);
+        
+        if (balanceCheck) {
+          console.log('Balance check result:', {
+            sufficient: balanceCheck.sufficient,
+            walNeeded: balanceCheck.walNeeded.toString(),
+            suiNeeded: balanceCheck.suiNeeded?.toString(),
+          });
+          
+          setWalBalanceStatus({
+            sufficient: balanceCheck.sufficient,
+            walNeeded: balanceCheck.walNeeded,
+            suiNeeded: balanceCheck.suiNeeded,
+            storageCost: formatWal(balanceCheck.walNeeded),
+          });
+
+          if (!balanceCheck.sufficient) {
+            console.log('Insufficient WAL, attempting to swap SUI -> WAL...');
+            console.log('SUI needed for swap:', balanceCheck.suiNeeded?.toString());
+            
+            const swapResult = await ensureWalBalance(totalSizeBytes, 3);
+            console.log('Swap result:', swapResult);
+            
+            if (!swapResult.success) {
+              console.error('Failed to ensure WAL balance:', swapResult.error);
+              setUploadError(`Không đủ WAL để trả phí storage. ${swapResult.error || 'Vui lòng swap SUI sang WAL trước.'}`);
+              setIsProcessing(false);
+              return;
+            }
+            console.log('WAL balance ensured successfully, new balance:', swapResult.walBalance.toString());
+          } else {
+            console.log('Sufficient WAL balance available');
+          }
+        }
+      } else {
+        console.log('sui-pay-wal not configured, skipping WAL balance check');
+      }
+
+      console.log('Creating register transaction...');
       const registerTx = flowRef.current.register({
         epochs: 3,
         owner: account.address,
         deletable: false,
       });
+      console.log('Register transaction created');
 
+      console.log('Signing and executing register transaction...');
       signAndExecute(
         { transaction: registerTx },
         {
           onSuccess: (result) => {
+            console.log('=== REGISTER SUCCESS ===');
+            console.log('Transaction digest:', result.digest);
             registerDigestRef.current = result.digest;
             setUploadStep('upload');
           },
           onError: (error) => {
+            console.error('=== REGISTER ERROR ===');
+            console.error('Error:', error);
             setUploadError(error.message || 'Failed to register blob');
             setIsProcessing(false);
           },
         }
       );
     } catch (error) {
-      console.error('Register error:', error);
+      console.error('=== REGISTER ERROR (catch) ===');
+      console.error('Error:', error);
       setUploadError(error instanceof Error ? error.message : 'Failed to register blob');
       setIsProcessing(false);
     }
