@@ -419,15 +419,6 @@ export default function MyDataPage() {
         )}
       </div>
 
-      <footer className="mt-auto border-t-2 border-ink pt-8 flex flex-col items-center gap-4 text-center opacity-60 pb-8 bg-[#f6f7f9]">
-        <p className="text-sm font-bold">Powered by Sui Network</p>
-        <div className="flex gap-4">
-          <span className="material-symbols-outlined">dataset</span>
-          <span className="material-symbols-outlined">security</span>
-          <span className="material-symbols-outlined">hub</span>
-        </div>
-      </footer>
-
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-2xl bg-white rounded-2xl border-2 border-ink shadow-hard-lg p-6 relative max-h-[90vh] overflow-y-auto">
