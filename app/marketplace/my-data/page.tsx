@@ -86,6 +86,14 @@ export default function MyDataPage() {
   });
 
   const flowRef = useRef<Awaited<ReturnType<typeof createFlow>> | null>(null);
+  const logContainerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll log panel when new logs are added
+  React.useEffect(() => {
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [logs]);
 
   const addLog = (step: string, status: TransactionLog['status'], message: string, details?: string) => {
     setLogs(prev => [...prev, {
@@ -749,8 +757,14 @@ export default function MyDataPage() {
       </div>
 
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-5xl bg-white rounded-2xl border-2 border-ink shadow-hard-lg max-h-[90vh] overflow-hidden flex flex-col">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4"
+          onClick={closeModal}
+        >
+          <div 
+            className="w-full max-w-5xl bg-white rounded-2xl border-2 border-ink shadow-hard-lg max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between p-4 border-b-2 border-ink">
               <h2 className="text-xl font-black text-ink uppercase">Create New Listing</h2>
               <button
@@ -778,9 +792,9 @@ export default function MyDataPage() {
                     <div className="flex items-center justify-between">
                       {STEPS.map((step, index) => {
                         const stepIndex = STEPS.findIndex(s => s.key === currentStep);
-                        const isCompleted = index < stepIndex;
-                        const isCurrent = step.key === currentStep;
-                        const isPending = index > stepIndex;
+                        const isCompleted = index < stepIndex || currentStep === 'complete';
+                        const isCurrent = step.key === currentStep && currentStep !== 'complete';
+                        const isPending = index > stepIndex && currentStep !== 'complete';
 
                         return (
                           <React.Fragment key={step.key}>
@@ -1001,7 +1015,7 @@ export default function MyDataPage() {
                           onClick={closeModal}
                           className="flex-1 h-12 rounded-xl border-2 border-ink bg-white text-ink font-bold hover:bg-gray-100 transition-colors"
                         >
-                          Cancel
+                          {currentStep === 'complete' ? 'Close' : 'Cancel'}
                         </button>
                       </div>
                     </div>
@@ -1009,7 +1023,7 @@ export default function MyDataPage() {
                 </div>
 
                 {/* Right Panel - Transaction Logs */}
-                <div className="w-80 border-l-2 border-ink bg-gray-50 p-4 overflow-y-auto">
+                <div ref={logContainerRef} className="w-80 border-l-2 border-ink bg-gray-50 p-4 overflow-y-auto">
                   <h3 className="font-bold uppercase text-sm mb-4 text-ink flex items-center gap-2">
                     <span className="material-symbols-outlined">terminal</span>
                     Transaction Log
@@ -1095,7 +1109,6 @@ export default function MyDataPage() {
                 <button
                   onClick={() => {
                     setProcessingType(null);
-                    closeModal();
                     refetch();
                   }}
                   className="flex-1 h-12 rounded-xl border-2 border-ink bg-primary text-white font-bold hover:translate-y-0.5 transition-all"
@@ -1105,7 +1118,6 @@ export default function MyDataPage() {
                 <button
                   onClick={() => {
                     setProcessingType(null);
-                    closeModal();
                   }}
                   className="flex-1 h-12 rounded-xl border-2 border-gray-300 bg-white text-gray-700 font-bold hover:bg-gray-50 transition-colors"
                 >
