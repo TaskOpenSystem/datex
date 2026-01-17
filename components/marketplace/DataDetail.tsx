@@ -67,7 +67,7 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
            if(textRef.current) textRef.current.innerText = "DECRYPTING SHARDS";
            if(subTextRef.current) subTextRef.current.innerText = "Reassembling Walrus Protocol data...";
         })
-        .to(iconRef.current, { scale: 1, rotation: 0, duration: 0.2 })
+        .to(iconRef.current, { scale: 1, rotation: 90, duration: 0.2 })
         .to(progressRef.current, { width: "75%", duration: 1.2 })
         .to(sealRef.current, { x: 5, duration: 0.05, yoyo: true, repeat: 5 })
         .to(sealRef.current, { 
@@ -82,6 +82,7 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
            if(iconRef.current) {
              iconRef.current.innerText = "download";
              iconRef.current.style.color = "#ccff00";
+             iconRef.current.style.transform = "rotate(0deg)";
            }
            if(textRef.current) {
              textRef.current.innerText = "DECRYPTION COMPLETE";
@@ -90,7 +91,7 @@ export default function DataDetail({ asset, onBack }: DataDetailProps) {
            if(subTextRef.current) subTextRef.current.innerText = "Download starting now.";
            if(pathRef.current) pathRef.current.style.fill = "#ccff00";
         })
-        .to(iconRef.current, { scale: 1.5, duration: 0.4, ease: "elastic.out(1, 0.5)" })
+        .to(iconRef.current, { scale: 1.5, rotation: 180, duration: 0.4, ease: "elastic.out(1, 0.5)" })
         .to(progressRef.current, { width: "100%", backgroundColor: "#ccff00", duration: 0.3 });
     }
   }, [isDownloadProcessing, asset.title]);

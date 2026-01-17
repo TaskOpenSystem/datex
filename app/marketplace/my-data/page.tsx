@@ -352,7 +352,7 @@ export default function MyDataPage() {
             <div className="absolute inset-4 rounded-full border border-white/10 animate-spin" style={{ animationDuration: '8s', animationDirection: 'reverse' }}></div>
             
             {/* Icon */}
-            <span ref={iconRef} className="material-symbols-outlined text-8xl text-white relative z-10">lock</span>
+            <span ref={iconRef} className="material-symbols-outlined !text-[120px] text-white relative z-10 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">lock</span>
             
             {/* Decorative Text Ring */}
             <svg className="absolute inset-0 h-full w-full animate-spin" style={{ animationDuration: '20s', animationDirection: 'reverse' }} viewBox="0 0 100 100" width="100" height="100">

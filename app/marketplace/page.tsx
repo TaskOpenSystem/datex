@@ -1,19 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
+import { useRouter } from 'next/navigation';
 import MarketplaceHeader from '@/components/marketplace/MarketplaceHeader';
 import FeaturedCollections from '@/components/marketplace/FeaturedCollections';
 import AssetCard from '@/components/marketplace/AssetCard';
-import DataDetail from '@/components/marketplace/DataDetail';
 import { DATA_ASSETS } from '@/constants/marketplace';
-import { DataAsset } from '@/types/marketplace';
 
 export default function MarketplacePage() {
-  const [selectedAsset, setSelectedAsset] = useState<DataAsset | null>(null);
-
-  if (selectedAsset) {
-    return <DataDetail asset={selectedAsset} onBack={() => setSelectedAsset(null)} />;
-  }
+  const router = useRouter();
 
   return (
     <div className="flex-1 overflow-y-auto flex flex-col">
@@ -37,7 +32,7 @@ export default function MarketplacePage() {
               <AssetCard 
                 key={asset.id} 
                 asset={asset} 
-                onClick={() => setSelectedAsset(asset)}
+                onClick={() => router.push(`/marketplace/dataset/${asset.id}`)}
               />
             ))}
           </div>
