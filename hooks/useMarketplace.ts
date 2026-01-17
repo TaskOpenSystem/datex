@@ -5,14 +5,14 @@ import { useCurrentAccount, useSignAndExecuteTransaction, useSuiClient } from '@
 import { Transaction } from '@mysten/sui/transactions';
 import { useQuery } from '@tanstack/react-query';
 import { marketplaceConfig, MIST_PER_SUI } from '@/config/marketplace';
-import { 
-  CreateListingInput, 
-  CreateListingResult, 
-  DatasetListing, 
-  PurchaseResult 
+import {
+  CreateListingInput,
+  CreateListingResult,
+  DatasetListing,
+  PurchaseResult
 } from '@/types/marketplace';
-import { 
-  getMarketplaceTarget, 
+import {
+  getMarketplaceTarget,
   parseDatasetListing
 } from '@/lib/marketplace';
 
@@ -120,7 +120,7 @@ export function useListDataset() {
 
       // Build PTB with optimized structure
       const tx = new Transaction();
-      
+
       // Set gas budget based on operation complexity
       tx.setGasBudget(10_000_000); // 0.01 SUI - sufficient for single listing
 
@@ -195,7 +195,7 @@ export function useListDataset() {
       }
 
       const tx = new Transaction();
-      
+
       // Dynamic gas budget based on number of listings
       // Base: 10M MIST + 5M per additional listing
       const gasBudget = 10_000_000 + (inputs.length - 1) * 5_000_000;
@@ -239,12 +239,12 @@ export function useListDataset() {
           onSuccess: (result) => {
             const effects = result.effects as { created?: Array<{ reference: { objectId: string } }> } | undefined;
             const createdIds = effects?.created?.map((obj) => obj.reference.objectId) || [];
-            
+
             const results: CreateListingResult[] = createdIds.map((id) => ({
               listingId: id,
               digest: result.digest,
             }));
-            
+
             onSuccess(results);
           },
         }
@@ -369,10 +369,10 @@ export function useOwnedListings(address?: string) {
     queryKey: ['owned-listings', address, marketplaceConfig.packageId],
     queryFn: async () => {
       if (!address) return [];
-      
+
       // Build type string dynamically to ensure env vars are loaded
       const listingType = `${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::DatasetListing`;
-      
+
       const { data } = await suiClient.getOwnedObjects({
         owner: address,
         filter: { StructType: listingType },
@@ -414,7 +414,7 @@ export function useListing(listingId: string | undefined) {
     queryKey: ['listing', listingId],
     queryFn: async () => {
       if (!listingId) return null;
-      
+
       const object = await suiClient.getObject({
         id: listingId,
         options: { showContent: true },
@@ -441,12 +441,12 @@ export function useAccountBalance() {
     queryKey: ['account-balance', account?.address],
     queryFn: async () => {
       if (!account?.address) return null;
-      
+
       const balance = await suiClient.getBalance({
         owner: account.address,
         coinType: '0x2::sui::SUI',
       });
-      
+
       return {
         mist: BigInt(balance.totalBalance),
         sui: Number(balance.totalBalance) / Number(MIST_PER_SUI),
@@ -464,22 +464,23 @@ export function usePurchasedDatasets(address?: string) {
     queryKey: ['purchased-datasets', address],
     queryFn: async () => {
       if (!address) return [];
-      
+
       const RECEIPT_TYPE = `${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::PurchaseReceipt`;
-      
+
+      // Step 1: Get all purchase receipts owned by the user
       const { data } = await suiClient.getOwnedObjects({
         owner: address,
         filter: { StructType: RECEIPT_TYPE },
         options: { showContent: true, showType: true },
       });
 
-      return data
+      const receipts = data
         .map((obj) => {
           if (!obj.data?.content || obj.data.content.dataType !== 'moveObject') return null;
           const fields = obj.data.content.fields as Record<string, unknown>;
           return {
             id: obj.data.objectId || '',
-            datasetId: (fields.dataset_id as { id: string })?.id || '',
+            datasetId: fields.dataset_id as string,
             buyer: fields.buyer as string,
             seller: fields.seller as string,
             price: BigInt(fields.price as string),
@@ -487,6 +488,44 @@ export function usePurchasedDatasets(address?: string) {
           };
         })
         .filter((receipt): receipt is { id: string; datasetId: string; buyer: string; seller: string; price: bigint; timestamp: number } => receipt !== null);
+
+      if (receipts.length === 0) return [];
+
+      // Step 2: Fetch the dataset details for each purchase receipt
+      const datasetIds = receipts.map(r => r.datasetId).filter(id => id && id !== '');
+
+      if (datasetIds.length === 0) return receipts.map(r => ({ ...r, dataset: null }));
+
+      const datasetObjects = await suiClient.multiGetObjects({
+        ids: datasetIds,
+        options: { showContent: true },
+      });
+
+      // Create a map of dataset ID -> dataset details
+      const datasetMap = new Map<string, DatasetListing | null>();
+      datasetObjects.forEach((obj) => {
+        if (obj.data?.content?.dataType === 'moveObject') {
+          const fields = obj.data.content.fields as Record<string, unknown>;
+          const dataset: DatasetListing = {
+            id: obj.data.objectId || '',
+            seller: fields.seller as string,
+            price: BigInt(fields.price as string),
+            blobId: fields.blob_id as string,
+            encryptedObject: fields.encrypted_object as string,
+            name: fields.name as string,
+            description: fields.description as string,
+            previewSize: BigInt(fields.preview_size as string),
+            totalSize: BigInt(fields.total_size as string),
+          };
+          datasetMap.set(obj.data.objectId || '', dataset);
+        }
+      });
+
+      // Step 3: Combine receipts with dataset details
+      return receipts.map(receipt => ({
+        ...receipt,
+        dataset: datasetMap.get(receipt.datasetId) || null,
+      }));
     },
     enabled: !!address,
     refetchInterval: 10000,
@@ -583,7 +622,7 @@ export function useDownloadDataset() {
         }
 
         const result = await response.json();
-        
+
         if (result.error) {
           throw new Error(result.error);
         }
