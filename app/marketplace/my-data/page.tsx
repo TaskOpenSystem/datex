@@ -87,7 +87,7 @@ export default function MyDataPage() {
   const createFlow = useCallback(async (data: Uint8Array, identifier: string) => {
     const walrus = await getWalrus();
     const { WalrusFile } = await import('@mysten/walrus');
-    
+
     const client = new SuiJsonRpcClient({
       url: getFullnodeUrl('testnet'),
       network: 'testnet',
@@ -290,7 +290,7 @@ export default function MyDataPage() {
             const effects = result.effects as { created?: Array<{ reference: { objectId: string } }> } | undefined;
             const newListingId = effects?.created?.[0]?.reference?.objectId || result.digest;
             console.log('New listing ID:', newListingId);
-            
+
             addLog('listing', 'success', 'Listing created!', `ID: ${newListingId.slice(0, 16)}...`);
             setListingId(newListingId);
 
@@ -350,7 +350,7 @@ export default function MyDataPage() {
             </div>
             <h1 className="text-4xl font-black text-ink uppercase tracking-tight">My Data Dashboard</h1>
           </div>
-          
+
           <div className="relative group">
             <div className="absolute -inset-1 rounded-xl bg-ink opacity-100 translate-x-1 translate-y-1 blur-0"></div>
             <div className="relative flex items-center gap-6 rounded-xl border-2 border-ink bg-white p-4 pr-8 shadow-sm">
@@ -374,23 +374,21 @@ export default function MyDataPage() {
 
       <div className="px-8 mt-6">
         <div className="flex gap-4 border-b-2 border-gray-200">
-          <button 
+          <button
             onClick={() => setActiveTab('uploads')}
-            className={`px-6 py-3 rounded-t-xl border-2 font-bold text-lg transition-colors relative top-[2px] z-10 ${
-              activeTab === 'uploads' 
-                ? 'border-ink border-b-0 bg-white text-ink shadow-[0_-2px_0_0_rgba(0,0,0,0.05)]' 
-                : 'border-transparent hover:bg-gray-100 text-gray-500'
-            }`}
+            className={`px-6 py-3 rounded-t-xl border-2 font-bold text-lg transition-colors relative top-[2px] z-10 ${activeTab === 'uploads'
+              ? 'border-ink border-b-0 bg-white text-ink shadow-[0_-2px_0_0_rgba(0,0,0,0.05)]'
+              : 'border-transparent hover:bg-gray-100 text-gray-500'
+              }`}
           >
             My Uploads
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('purchases')}
-            className={`px-6 py-3 rounded-t-xl border-2 font-bold text-lg transition-colors relative top-[2px] z-10 ${
-              activeTab === 'purchases' 
-                ? 'border-ink border-b-0 bg-white text-ink shadow-[0_-2px_0_0_rgba(0,0,0,0.05)]' 
-                : 'border-transparent hover:bg-gray-100 text-gray-500'
-            }`}
+            className={`px-6 py-3 rounded-t-xl border-2 font-bold text-lg transition-colors relative top-[2px] z-10 ${activeTab === 'purchases'
+              ? 'border-ink border-b-0 bg-white text-ink shadow-[0_-2px_0_0_rgba(0,0,0,0.05)]'
+              : 'border-transparent hover:bg-gray-100 text-gray-500'
+              }`}
           >
             My Purchases
           </button>
@@ -408,9 +406,9 @@ export default function MyDataPage() {
                 View Analytics <span className="material-symbols-outlined text-sm">arrow_outward</span>
               </button>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              <article 
+              <article
                 onClick={() => setIsCreateModalOpen(true)}
                 className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-ink bg-gray-50 p-6 min-h-[340px] hover:bg-blue-50 hover:border-primary transition-all duration-200 cursor-pointer group"
               >
@@ -463,7 +461,7 @@ export default function MyDataPage() {
                 Recent Purchases <span className="text-gray-400 text-base font-normal ml-1">(0 items)</span>
               </h2>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               <article className="flex flex-col rounded-xl border-2 border-ink bg-white p-4 shadow-hard-sm opacity-60">
                 <div className="flex items-start justify-between mb-4">
@@ -474,7 +472,7 @@ export default function MyDataPage() {
                 </div>
                 <h3 className="text-lg font-bold text-gray-400 mb-1">No purchases yet</h3>
                 <p className="text-sm text-gray-400 mb-4">Start exploring the marketplace to find datasets.</p>
-                <Link 
+                <Link
                   href="/marketplace"
                   className="mt-auto w-full h-10 rounded-lg border-2 border-ink bg-gray-100 text-gray-500 font-bold transition-colors flex items-center justify-center gap-2"
                 >
@@ -485,15 +483,6 @@ export default function MyDataPage() {
           </section>
         )}
       </div>
-
-      <footer className="mt-auto border-t-2 border-ink pt-8 flex flex-col items-center gap-4 text-center opacity-60 pb-8 bg-[#f6f7f9]">
-        <p className="text-sm font-bold">Powered by Sui Network</p>
-        <div className="flex gap-4">
-          <span className="material-symbols-outlined">dataset</span>
-          <span className="material-symbols-outlined">security</span>
-          <span className="material-symbols-outlined">hub</span>
-        </div>
-      </footer>
 
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4">
@@ -528,7 +517,7 @@ export default function MyDataPage() {
                         const isCompleted = index < stepIndex;
                         const isCurrent = step.key === currentStep;
                         const isPending = index > stepIndex;
-                        
+
                         return (
                           <React.Fragment key={step.key}>
                             <div className="flex flex-col items-center">
@@ -551,9 +540,8 @@ export default function MyDataPage() {
                               </span>
                             </div>
                             {index < STEPS.length - 1 && (
-                              <div className={`flex-1 h-1 mx-2 rounded ${
-                                isCompleted ? 'bg-green-500' : 'bg-gray-200'
-                              }`} />
+                              <div className={`flex-1 h-1 mx-2 rounded ${isCompleted ? 'bg-green-500' : 'bg-gray-200'
+                                }`} />
                             )}
                           </React.Fragment>
                         );
@@ -708,7 +696,7 @@ export default function MyDataPage() {
                     <div className="space-y-6">
                       <div className="bg-gray-50 border-2 border-ink rounded-xl p-6">
                         <h3 className="font-bold uppercase text-lg mb-4 text-ink">Dataset Summary</h3>
-                        
+
                         <div className="grid grid-cols-2 gap-4 mb-4">
                           <div>
                             <p className="text-sm text-gray-500">Name</p>
@@ -771,7 +759,7 @@ export default function MyDataPage() {
                   ) : (
                     <div className="space-y-3">
                       {logs.map((log, index) => (
-                        <div 
+                        <div
                           key={index}
                           className={`
                             rounded-lg p-3 border-2 text-sm
@@ -831,14 +819,14 @@ export default function MyDataPage() {
                 Listing Created!
               </h2>
               <p className="text-gray-600 mb-4">Your dataset is now on the marketplace</p>
-              
+
               {listingId && (
                 <div className="w-full bg-gray-50 rounded-lg p-3 mb-6 border border-gray-200">
                   <p className="text-xs font-bold text-gray-500 uppercase mb-1">Listing ID</p>
                   <p className="font-mono text-xs text-ink break-all">{listingId}</p>
                 </div>
               )}
-              
+
               <div className="flex gap-3 w-full">
                 <button
                   onClick={() => {
