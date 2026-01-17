@@ -42,6 +42,7 @@ interface TransactionLog {
   status: 'pending' | 'processing' | 'success' | 'error';
   message: string;
   details?: string;
+  link?: { url: string; label: string };
   timestamp: string;
 }
 
@@ -95,21 +96,22 @@ export default function MyDataPage() {
     }
   }, [logs]);
 
-  const addLog = (step: string, status: TransactionLog['status'], message: string, details?: string) => {
+  const addLog = (step: string, status: TransactionLog['status'], message: string, details?: string, link?: { url: string; label: string }) => {
     setLogs(prev => [...prev, {
       step,
       status,
       message,
       details,
+      link,
       timestamp: new Date().toLocaleTimeString(),
     }]);
   };
 
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-  const addLogWithDelay = async (step: string, status: TransactionLog['status'], message: string, details?: string, delayMs: number = 300) => {
+  const addLogWithDelay = async (step: string, status: TransactionLog['status'], message: string, details?: string, link?: { url: string; label: string }, delayMs: number = 300) => {
     await delay(delayMs);
-    addLog(step, status, message, details);
+    addLog(step, status, message, details, link);
   };
 
   const createFlow = useCallback(async (data: Uint8Array, _identifier: string) => {
@@ -255,7 +257,7 @@ export default function MyDataPage() {
         {
           onSuccess: async (result) => {
             try {
-              await addLogWithDelay('register', 'success', 'Blob registered', `TX: ${result.digest.slice(0, 16)}...`);
+              await addLogWithDelay('register', 'success', 'Blob registered', `TX: ${result.digest.slice(0, 16)}...`, { url: `https://suiscan.xyz/testnet/tx/${result.digest}`, label: 'View on SuiScan' });
 
               // Step 3: Upload to Walrus storage nodes
               setCurrentStep('upload');
@@ -274,7 +276,7 @@ export default function MyDataPage() {
                 { transaction: certifyTx },
                 {
                   onSuccess: async (certifyResult) => {
-                    await addLogWithDelay('certify', 'success', 'Blob certified', `TX: ${certifyResult.digest.slice(0, 16)}...`);
+                    await addLogWithDelay('certify', 'success', 'Blob certified', `TX: ${certifyResult.digest.slice(0, 16)}...`, { url: `https://suiscan.xyz/testnet/tx/${certifyResult.digest}`, label: 'View on SuiScan' });
 
                     // Step 5: Get blobId from getBlob (for raw blob upload)
                     let walrusBlobId = '';
@@ -284,7 +286,7 @@ export default function MyDataPage() {
                       walrusBlobId = blobInfo.blobId || '';
                       if (walrusBlobId) {
                         setBlobId(walrusBlobId);
-                        await addLogWithDelay('complete', 'success', 'Blob ID obtained', `ID: ${walrusBlobId.slice(0, 20)}...`);
+                        await addLogWithDelay('complete', 'success', 'Blob ID obtained', `ID: ${walrusBlobId.slice(0, 20)}...`, { url: `https://walruscan.com/testnet/blob/${walrusBlobId}`, label: 'View on WalrusScan' });
                       }
                     } catch (listError) {
                       console.error('[Walrus] getBlob error:', listError);
@@ -374,7 +376,7 @@ export default function MyDataPage() {
             const newListingId = effects?.created?.[0]?.reference?.objectId || result.digest;
             console.log('New listing ID:', newListingId);
 
-            await addLogWithDelay('listing', 'success', 'Listing created!', `ID: ${newListingId.slice(0, 16)}...`);
+            await addLogWithDelay('listing', 'success', 'Listing created!', `ID: ${newListingId.slice(0, 16)}...`, { url: `https://suiscan.xyz/testnet/object/${newListingId}`, label: 'View on SuiScan' });
             setListingId(newListingId);
 
             setCurrentStep('complete');
@@ -1056,6 +1058,17 @@ export default function MyDataPage() {
                           <p className="text-gray-600">{log.message}</p>
                           {log.details && (
                             <p className="text-xs text-gray-400 mt-1 font-mono break-all">{log.details}</p>
+                          )}
+                          {log.link && (
+                            <a 
+                              href={log.link.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:underline mt-1 inline-flex items-center gap-1"
+                            >
+                              {log.link.label}
+                              <span className="material-symbols-outlined text-xs">open_in_new</span>
+                            </a>
                           )}
                           <p className="text-xs text-gray-400 mt-1">{log.timestamp}</p>
                         </div>
