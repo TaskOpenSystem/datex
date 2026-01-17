@@ -304,13 +304,16 @@ export function useOwnedListings(address?: string) {
   const suiClient = useSuiClient();
 
   return useQuery({
-    queryKey: ['owned-listings', address],
+    queryKey: ['owned-listings', address, marketplaceConfig.packageId],
     queryFn: async () => {
       if (!address) return [];
       
+      // Build type string dynamically to ensure env vars are loaded
+      const listingType = `${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::DatasetListing`;
+      
       const { data } = await suiClient.getOwnedObjects({
         owner: address,
-        filter: { StructType: LISTING_TYPE },
+        filter: { StructType: listingType },
         options: { showContent: true, showType: true },
       });
 
@@ -318,7 +321,19 @@ export function useOwnedListings(address?: string) {
         .map((obj) => {
           if (!obj.data?.content || obj.data.content.dataType !== 'moveObject') return null;
           try {
-            return parseDatasetListing(obj.data.content.fields as Record<string, unknown>);
+            const fields = obj.data.content.fields as Record<string, unknown>;
+            // Parse directly from fields (getOwnedObjects returns fields directly)
+            return {
+              id: obj.data.objectId || '',
+              seller: fields.seller as string,
+              price: BigInt(fields.price as string),
+              blobId: fields.blob_id as string,
+              encryptedObject: fields.encrypted_object as string,
+              name: fields.name as string,
+              description: fields.description as string,
+              previewSize: BigInt(fields.preview_size as string),
+              totalSize: BigInt(fields.total_size as string),
+            } as DatasetListing;
           } catch {
             return null;
           }
