@@ -106,7 +106,7 @@ export function TransactionStatus({
       if (step.status === 'active') {
         // Pulse glow effect for active step
         gsap.to(stepEl, {
-          boxShadow: '0 0 20px rgba(59, 130, 246, 0.5)',
+          boxShadow: '4px 4px 0px 0px #101618',
           duration: 0.8,
           repeat: -1,
           yoyo: true,
@@ -127,7 +127,7 @@ export function TransactionStatus({
         // Success animation
         gsap.killTweensOf(stepEl);
         gsap.to(stepEl, {
-          boxShadow: '0 0 0px rgba(59, 130, 246, 0)',
+          boxShadow: '2px 2px 0px 0px #101618',
           duration: 0.3
         });
 
@@ -135,7 +135,7 @@ export function TransactionStatus({
         gsap.fromTo(stepEl,
           { scale: 1 },
           {
-            scale: 1.05,
+            scale: 1.02,
             duration: 0.2,
             yoyo: true,
             repeat: 1,
@@ -197,37 +197,23 @@ export function TransactionStatus({
     >
       <div
         ref={modalRef}
-        className="bg-white rounded-2xl border-2 border-ink shadow-hard-lg w-full max-w-md mx-4 overflow-hidden"
+        className="bg-white rounded-xl border-2 border-ink shadow-hard-lg w-full max-w-md mx-4 overflow-hidden"
       >
         {/* Header */}
-        <div className="bg-ink text-white px-6 py-4">
+        <div className="bg-ink text-white px-6 py-4 border-b-2 border-ink">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="relative w-10 h-10 flex items-center justify-center">
+              <div className="relative w-10 h-10 flex items-center justify-center rounded-lg border-2 border-accent-lime bg-ink">
                 <span
                   ref={headerIconRef}
                   className="material-symbols-outlined text-2xl text-accent-lime"
                 >
                   swap_horiz
                 </span>
-                {/* Rotating ring */}
-                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 40 40">
-                  <circle
-                    cx="20"
-                    cy="20"
-                    r="18"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeDasharray="20 10"
-                    className="text-white/30 animate-spin"
-                    style={{ animationDuration: '3s' }}
-                  />
-                </svg>
               </div>
               <div>
-                <h3 className="font-bold uppercase tracking-wide">Transaction Progress</h3>
-                <p className="text-xs text-gray-400">
+                <h3 className="font-bold uppercase tracking-wider text-sm">Transaction Progress</h3>
+                <p className="text-xs text-gray-400 font-medium">
                   {steps.some(s => s.status === 'active')
                     ? 'Processing...'
                     : steps.every(s => s.status === 'completed')
@@ -239,7 +225,7 @@ export function TransactionStatus({
             {onClose && !steps.some(s => s.status === 'active') && (
               <button
                 onClick={handleClose}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors border-2 border-transparent hover:border-white/20"
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
@@ -248,23 +234,19 @@ export function TransactionStatus({
         </div>
 
         {/* Progress Bar */}
-        <div className="px-6 pt-5">
-          <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden">
-            {/* Animated background */}
-            <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-pulse" />
-
+        <div className="px-6 pt-5 bg-gray-50">
+          <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden border-2 border-ink">
             {/* Progress fill */}
             <div
               ref={progressRef}
-              className="relative h-full w-0 rounded-full overflow-hidden"
-              style={{ background: 'linear-gradient(90deg, #3B82F6, #00D68F)' }}
+              className="relative h-full w-0 rounded-full overflow-hidden bg-accent-lime"
             >
               {/* Shine effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+              <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
             </div>
           </div>
-          <div className="flex justify-between mt-2">
-            <span className="text-xs text-gray-500 font-medium">
+          <div className="flex justify-between mt-2 pb-4">
+            <span className="text-xs text-gray-500 font-bold uppercase tracking-wide">
               Step {Math.min(completedCount + 1, steps.length)} of {steps.length}
             </span>
             <span className="text-xs font-bold text-ink">{progressPercent}%</span>
@@ -272,31 +254,31 @@ export function TransactionStatus({
         </div>
 
         {/* Steps */}
-        <div className="px-6 py-4 space-y-3">
+        <div className="px-6 py-4 space-y-3 bg-white">
           {steps.map((step, index) => (
             <div
               key={step.id}
               ref={el => { stepsRef.current[index] = el; }}
-              className={`flex items-start gap-3 p-3 rounded-xl border-2 transition-colors duration-300 ${step.status === 'completed'
-                  ? 'bg-green-50 border-green-500'
+              className={`flex items-start gap-3 p-3 rounded-lg border-2 transition-all duration-300 ${step.status === 'completed'
+                  ? 'bg-accent-lime/20 border-ink shadow-hard-sm'
                   : step.status === 'active'
-                    ? 'bg-blue-50 border-primary'
+                    ? 'bg-primary/10 border-ink shadow-hard-sm'
                     : step.status === 'error'
-                      ? 'bg-red-50 border-red-500'
+                      ? 'bg-accent-pink/10 border-accent-pink shadow-hard-sm'
                       : 'bg-gray-50 border-gray-200'
                 }`}
             >
               {/* Step Icon */}
-              <div className={`step-icon shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors duration-300 ${step.status === 'completed'
-                  ? 'bg-green-500 text-white'
+              <div className={`step-icon shrink-0 w-8 h-8 rounded-lg border-2 border-ink flex items-center justify-center transition-colors duration-300 ${step.status === 'completed'
+                  ? 'bg-accent-lime text-ink'
                   : step.status === 'active'
                     ? 'bg-primary text-white'
                     : step.status === 'error'
-                      ? 'bg-red-500 text-white'
-                      : 'bg-gray-300 text-gray-500'
+                      ? 'bg-accent-pink text-white'
+                      : 'bg-white text-gray-500'
                 }`}>
                 {step.status === 'completed' ? (
-                  <span className="material-symbols-outlined text-lg">check</span>
+                  <span className="material-symbols-outlined text-lg font-bold">check</span>
                 ) : step.status === 'active' ? (
                   <span className="material-symbols-outlined text-lg">sync</span>
                 ) : step.status === 'error' ? (
@@ -309,17 +291,17 @@ export function TransactionStatus({
               {/* Step Content */}
               <div className="flex-1 min-w-0">
                 <p className={`font-bold text-sm transition-colors duration-300 ${step.status === 'completed'
-                    ? 'text-green-700'
+                    ? 'text-ink'
                     : step.status === 'active'
-                      ? 'text-primary'
+                      ? 'text-ink'
                       : step.status === 'error'
-                        ? 'text-red-700'
+                        ? 'text-accent-pink'
                         : 'text-gray-500'
                   }`}>
                   {step.label}
                 </p>
                 {step.description && (
-                  <p className={`text-xs mt-0.5 transition-colors duration-300 ${step.status === 'active' ? 'text-blue-600' : 'text-gray-500'
+                  <p className={`text-xs mt-0.5 transition-colors duration-300 ${step.status === 'active' ? 'text-primary' : 'text-gray-500'
                     }`}>
                     {step.description}
                   </p>
@@ -329,9 +311,9 @@ export function TransactionStatus({
               {/* Status indicator */}
               {step.status === 'active' && (
                 <div className="shrink-0 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               )}
             </div>
@@ -340,13 +322,13 @@ export function TransactionStatus({
 
         {/* Error Message */}
         {error && (
-          <div className="px-6 pb-4">
-            <div className="bg-red-100 border-2 border-red-400 rounded-xl p-3">
+          <div className="px-6 pb-4 bg-white">
+            <div className="bg-accent-pink/10 border-2 border-accent-pink rounded-lg p-3 shadow-hard-sm">
               <div className="flex items-start gap-2">
-                <span className="material-symbols-outlined text-red-600 animate-pulse">error</span>
+                <span className="material-symbols-outlined text-accent-pink animate-pulse">error</span>
                 <div>
-                  <p className="font-bold text-red-700 text-sm">Transaction Failed</p>
-                  <p className="text-xs text-red-600 mt-0.5 break-all">{error}</p>
+                  <p className="font-bold text-ink text-sm uppercase tracking-wide">Transaction Failed</p>
+                  <p className="text-xs text-gray-600 mt-0.5 break-all">{error}</p>
                 </div>
               </div>
             </div>
@@ -354,8 +336,8 @@ export function TransactionStatus({
         )}
 
         {/* Footer */}
-        <div className="px-6 pb-5">
-          <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-100 rounded-xl p-3 border border-gray-200">
+        <div className="px-6 pb-5 bg-white">
+          <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-100 rounded-lg p-3 border-2 border-gray-200">
             <span className={`material-symbols-outlined text-base ${steps.some(s => s.status === 'active') ? 'animate-pulse text-primary' : ''
               }`}>
               {steps.every(s => s.status === 'completed')
@@ -364,7 +346,7 @@ export function TransactionStatus({
                   ? 'warning'
                   : 'info'}
             </span>
-            <span>
+            <span className="font-medium">
               {steps.some(s => s.status === 'active')
                 ? 'Please sign the transaction in your wallet when prompted.'
                 : steps.every(s => s.status === 'completed')
