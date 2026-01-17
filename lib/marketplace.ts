@@ -107,6 +107,43 @@ export function getMarketplaceTarget(functionName: string): string {
   return `${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::${functionName}`;
 }
 
+/**
+ * PTB Helper: Estimate gas budget for batch operations
+ * @param operationCount Number of operations in the batch
+ * @param baseGas Base gas per operation (default: 10M MIST)
+ * @param additionalGas Additional gas per extra operation (default: 5M MIST)
+ */
+export function estimateBatchGasBudget(
+  operationCount: number,
+  baseGas: number = 10_000_000,
+  additionalGas: number = 5_000_000
+): number {
+  if (operationCount <= 0) return baseGas;
+  return baseGas + (operationCount - 1) * additionalGas;
+}
+
+/**
+ * PTB Helper: Validate inputs before batch transaction
+ */
+export function validateBatchInputs<T>(
+  inputs: T[],
+  validator: (input: T) => string | null
+): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  for (let i = 0; i < inputs.length; i++) {
+    const error = validator(inputs[i]);
+    if (error) {
+      errors.push(`Item ${i + 1}: ${error}`);
+    }
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
 export function shortenAddress(address: string): string {
   if (address.length <= 10) return address;
   return `${address.slice(0, 6)}...${address.slice(-4)}`;

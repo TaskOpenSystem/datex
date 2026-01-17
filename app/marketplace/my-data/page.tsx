@@ -3,12 +3,21 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
-import { useAllListings, useListDataset, useAccountBalance } from '@/hooks/useMarketplace';
+import { useAllListings, useAccountBalance } from '@/hooks/useMarketplace';
 import { formatSize, bytesToHex, formatPrice } from '@/lib/marketplace';
 import { getFullnodeUrl } from '@mysten/sui/client';
 import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc';
-import { CreateListingInput } from '@/types/marketplace';
 import gsap from 'gsap';
+import type { Transaction } from '@mysten/sui/transactions';
+import { TransactionStatus, useTransactionSteps } from '@/components/marketplace/TransactionStatus';
+
+// Type for Walrus write files flow
+interface WalrusWriteFlow {
+  encode: () => Promise<void>;
+  register: (opts: { epochs: number; owner: string; deletable: boolean }) => Transaction;
+  upload: (opts: { digest: string }) => Promise<void>;
+  certify: () => Transaction;
+}
 
 const walrusModule = {
   walrus: null as null | typeof import('@mysten/walrus').walrus,
@@ -22,27 +31,23 @@ async function getWalrus() {
 }
 
 type Tab = 'uploads' | 'purchases';
-type UploadStep = 'form' | 'upload' | 'sign' | 'complete';
 
 export default function MyDataPage() {
   const account = useCurrentAccount();
   const { mutate: signAndExecute, isPending: isSigning } = useSignAndExecuteTransaction();
   const { data: listings, isLoading, refetch } = useAllListings();
-  const { createListing, isPending: isCreating, error: createError } = useListDataset();
   const { data: balance } = useAccountBalance();
 
   const [activeTab, setActiveTab] = useState<Tab>('uploads');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [uploadStep, setUploadStep] = useState<UploadStep>('form');
   const [processingType, setProcessingType] = useState<'create' | 'download' | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
-  const [fileBytes, setFileBytes] = useState<Uint8Array | null>(null);
   const [blobId, setBlobId] = useState('');
-  const [encryptedObject, setEncryptedObject] = useState('');
   const [totalSizeBytes, setTotalSizeBytes] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [showTxStatus, setShowTxStatus] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -51,9 +56,18 @@ export default function MyDataPage() {
     previewSizeBytes: 1024 * 1024,
   });
 
-  const flowRef = useRef<Awaited<ReturnType<typeof createFlow>> | null>(null);
+  const flowRef = useRef<WalrusWriteFlow | null>(null);
+  const iconRef = useRef<HTMLSpanElement>(null);
 
-  const createFlow = useCallback(async (data: Uint8Array, identifier: string) => {
+  // Transaction steps for status display
+  const txSteps = useTransactionSteps([
+    { id: 'encode', label: 'Encoding File', description: 'Preparing data for upload' },
+    { id: 'register', label: 'Register on Sui', description: 'Sign to register blob' },
+    { id: 'upload', label: 'Upload to Walrus', description: 'Uploading encrypted data' },
+    { id: 'listing', label: 'Create Listing', description: 'Sign to create marketplace listing' },
+  ]);
+
+  const createFlow = useCallback(async (data: Uint8Array, identifier: string): Promise<WalrusWriteFlow> => {
     const walrus = await getWalrus();
     const { WalrusFile } = await import('@mysten/walrus');
 
@@ -67,7 +81,7 @@ export default function MyDataPage() {
           sendTip: { max: 1_000_000 },
         },
       })
-    );
+    ) as unknown as { walrus: { writeFilesFlow: (opts: { files: unknown[] }) => WalrusWriteFlow } };
 
     const walrusFile = WalrusFile.from({
       contents: data,
@@ -85,9 +99,7 @@ export default function MyDataPage() {
     setFile(selectedFile);
     setTotalSizeBytes(selectedFile.size);
     setFormData(prev => ({ ...prev, previewSizeBytes: Math.min(1024 * 1024, selectedFile.size) }));
-    setUploadStep('form');
     setBlobId('');
-    setEncryptedObject('');
     flowRef.current = null;
   };
 
@@ -100,126 +112,143 @@ export default function MyDataPage() {
 
     setIsProcessing(true);
     setUploadError('');
+    setShowTxStatus(true);
+    txSteps.reset();
 
     try {
+      // Validate form data first
+      const price = parseFloat(formData.priceSUI);
+      if (!formData.name || !formData.description || isNaN(price) || price <= 0) {
+        setUploadError('Please fill in all required fields');
+        setIsProcessing(false);
+        setShowTxStatus(false);
+        return;
+      }
+
+      // Step 1: Encode
+      txSteps.startStep('encode', 'Reading and encoding file data...');
+      
       const fileBytes = await file.arrayBuffer();
       const uint8Array = new Uint8Array(fileBytes);
-      setFileBytes(uint8Array);
 
+      // Create flow and encode
       const flow = await createFlow(uint8Array, file.name);
       flowRef.current = flow;
-
       await flow.encode();
 
-      setEncryptedObject('0x' + bytesToHex(uint8Array).slice(0, 128));
-      setUploadStep('upload');
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Failed to prepare upload');
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+      // Generate blob ID from content hash
+      const contentHash = Array.from(uint8Array).slice(0, 32).map((b: number) => b.toString(16).padStart(2, '0')).join('');
+      const generatedBlobId = '0x' + contentHash;
+      const generatedEncryptedObject = '0x' + bytesToHex(uint8Array).slice(0, 128);
 
-  const handleSignTransaction = async () => {
-    if (!flowRef.current || !account) return;
+      setBlobId(generatedBlobId);
+      txSteps.completeStep('encode');
 
-    setIsProcessing(true);
-    setUploadError('');
+      // Step 2: Register
+      txSteps.startStep('register', 'Please sign the transaction in your wallet...');
 
-    try {
-      const registerTx = flowRef.current.register({
+      // Build combined PTB: register + certify + create listing
+      const { marketplaceConfig, MIST_PER_SUI } = await import('@/config/marketplace');
+      const { getMarketplaceTarget } = await import('@/lib/marketplace');
+
+      // Get register transaction from flow
+      const registerTx = flow.register({
         epochs: 3,
         owner: account.address,
         deletable: false,
       });
 
+      // Execute single PTB transaction
       signAndExecute(
         { transaction: registerTx },
         {
           onSuccess: async (result) => {
             try {
-              await flowRef.current?.upload({ digest: result.digest });
+              txSteps.completeStep('register');
+              
+              // Step 3: Upload
+              txSteps.startStep('upload', 'Uploading encrypted data to Walrus network...');
+              await flow.upload({ digest: result.digest });
+              txSteps.completeStep('upload');
 
-              const certifyTx = flowRef.current?.certify();
-              if (certifyTx) {
-                signAndExecute(
-                  { transaction: certifyTx },
-                  {
-                    onSuccess: async () => {
-                      if (fileBytes) {
-                        const contentHash = Array.from(fileBytes).slice(0, 32).map((b: number) => b.toString(16).padStart(2, '0')).join('');
-                        setBlobId('0x' + contentHash);
-                      }
-                      setUploadStep('complete');
+              // Step 4: Create Listing
+              txSteps.startStep('listing', 'Please sign to create your listing...');
+
+              // Build final PTB: certify + create listing in one transaction
+              const certifyTx = flow.certify();
+              
+              // Merge certify with create listing using PTB
+              const priceInMIST = BigInt(Math.floor(price * Number(MIST_PER_SUI)));
+              const registryId = marketplaceConfig.registryId;
+
+              // Add create listing to the certify transaction
+              const listing = certifyTx.moveCall({
+                target: getMarketplaceTarget('list_dataset'),
+                arguments: [
+                  certifyTx.object(registryId),
+                  certifyTx.pure.string(generatedBlobId),
+                  certifyTx.pure.string(generatedEncryptedObject),
+                  certifyTx.pure.string(formData.name),
+                  certifyTx.pure.string(formData.description),
+                  certifyTx.pure.u64(priceInMIST),
+                  certifyTx.pure.u64(formData.previewSizeBytes),
+                  certifyTx.pure.u64(totalSizeBytes),
+                ],
+              });
+
+              // Transfer listing to owner
+              certifyTx.transferObjects([listing], account.address);
+
+              // Execute combined certify + create listing transaction
+              signAndExecute(
+                { transaction: certifyTx },
+                {
+                  onSuccess: () => {
+                    txSteps.completeStep('listing');
+                    
+                    // Delay to show completion
+                    setTimeout(() => {
+                      setShowTxStatus(false);
+                      setIsCreateModalOpen(false);
+                      setProcessingType('create');
+                      resetFlow();
+                      refetch();
                       setIsProcessing(false);
-                    },
-                    onError: () => {
-                      if (fileBytes) {
-                        const contentHash = Array.from(fileBytes).slice(0, 32).map((b: number) => b.toString(16).padStart(2, '0')).join('');
-                        setBlobId('0x' + contentHash);
-                      }
-                      setUploadStep('complete');
-                      setIsProcessing(false);
-                    },
-                  }
-                );
-              } else {
-                if (fileBytes) {
-                  const contentHash = Array.from(fileBytes).slice(0, 32).map((b: number) => b.toString(16).padStart(2, '0')).join('');
-                  setBlobId('0x' + contentHash);
+                    }, 1500);
+                  },
+                  onError: (err) => {
+                    txSteps.failStep('listing', err.message || 'Failed to create listing');
+                    setUploadError(err.message || 'Failed to create listing');
+                    setIsProcessing(false);
+                  },
                 }
-                setUploadStep('complete');
-                setIsProcessing(false);
-              }
-            } catch {
-              if (fileBytes) {
-                const contentHash = Array.from(fileBytes).slice(0, 32).map((b: number) => b.toString(16).padStart(2, '0')).join('');
-                setBlobId('0x' + contentHash);
-              }
-              setUploadStep('complete');
+              );
+            } catch (err) {
+              const errorMsg = err instanceof Error ? err.message : 'Upload failed';
+              txSteps.failStep('upload', errorMsg);
+              setUploadError(errorMsg);
               setIsProcessing(false);
             }
           },
           onError: (err) => {
-            setUploadError(err.message || 'Failed to sign transaction');
+            txSteps.failStep('register', err.message || 'Failed to register blob');
+            setUploadError(err.message || 'Failed to register blob');
             setIsProcessing(false);
           },
         }
       );
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Transaction failed');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to prepare upload';
+      txSteps.failStep('encode', errorMsg);
+      setUploadError(errorMsg);
       setIsProcessing(false);
     }
-  };
-
-  const handleFinalSubmit = () => {
-    if (!blobId || !account) return;
-
-    const price = parseFloat(formData.priceSUI);
-    const input: CreateListingInput = {
-      name: formData.name,
-      description: formData.description,
-      priceSUI: price,
-      blobId,
-      encryptedObject,
-      previewSizeBytes: formData.previewSizeBytes,
-      totalSizeBytes,
-    };
-
-    createListing(input, () => {
-      setIsCreateModalOpen(false);
-      setProcessingType('create');
-      resetFlow();
-      refetch();
-    });
   };
 
   const resetFlow = () => {
     setFile(null);
     setBlobId('');
-    setEncryptedObject('');
     setTotalSizeBytes(0);
-    setUploadStep('form');
     setFormData({
       name: '',
       description: '',
@@ -438,19 +467,17 @@ export default function MyDataPage() {
                 <p className="text-gray-600">Please connect your wallet to create a listing.</p>
               </div>
             ) : (
-              <>
-                {uploadStep === 'form' && (
-                  <div className="space-y-6">
-                    <div className="grid md:grid-cols-2 gap-6">
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Dataset Name</label>
-                          <input
-                            type="text"
-                            value={formData.name}
-                            onChange={(e) => handleInputChange('name', e.target.value)}
-                            placeholder="Enter dataset name"
-                            maxLength={100}
+              <div className="space-y-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Dataset Name</label>
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => handleInputChange('name', e.target.value)}
+                        placeholder="Enter dataset name"
+                        maxLength={100}
                             className="w-full rounded-lg border-2 border-gray-200 focus:border-primary focus:ring-0 font-bold text-ink placeholder:text-gray-300 transition-colors p-3"
                           />
                           <p className="text-xs text-gray-500 mt-1">{formData.name.length}/100 characters</p>
@@ -574,143 +601,28 @@ export default function MyDataPage() {
 
                         <button
                           onClick={handleStartUpload}
-                          disabled={!file || !formData.name || !formData.description || !formData.priceSUI || isProcessing}
+                          disabled={!file || !formData.name || !formData.description || !formData.priceSUI || isProcessing || isSigning}
                           className="w-full h-12 rounded-xl border-2 border-ink bg-primary text-white font-bold shadow-hard-sm hover:translate-y-0.5 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
-                          {isProcessing ? (
+                          {isProcessing || isSigning ? (
                             <>
                               <span className="material-symbols-outlined animate-spin">sync</span>
-                              Processing...
+                              Creating Listing...
                             </>
                           ) : (
-                            'Start Upload'
+                            <>
+                              <span className="material-symbols-outlined">rocket_launch</span>
+                              Create Listing
+                            </>
                           )}
                         </button>
+                        
+                        <p className="text-xs text-gray-500 text-center">
+                          One transaction to upload, register, and create your listing
+                        </p>
                       </div>
                     </div>
                   </div>
-                )}
-
-                {uploadStep === 'upload' && (
-                  <div className="space-y-6">
-                    <div className="bg-white border-2 border-ink rounded-xl p-6">
-                      <h3 className="font-bold uppercase text-lg mb-4 text-ink">Upload Wizard</h3>
-
-                      <div className="space-y-3 mb-6">
-                        <div className="flex items-center gap-3 p-3 rounded-xl border-2 bg-green-100 border-green-500">
-                          <span className="material-symbols-outlined text-green-600">check_circle</span>
-                          <span className="font-semibold text-ink">Step 1: Encode file</span>
-                        </div>
-                        <div className={`flex items-center gap-3 p-3 rounded-xl border-2 ${isProcessing ? 'bg-blue-100 border-blue-500' : 'bg-gray-100 border-gray-300'
-                          }`}>
-                          <span className={`material-symbols-outlined ${isProcessing ? 'text-blue-600' : 'text-gray-400'}`}>
-                            {isProcessing ? 'pending' : 'radio_button_unchecked'}
-                          </span>
-                          <span className={`font-semibold ${isProcessing ? 'text-ink' : 'text-gray-500'}`}>
-                            Step 2: Register & Upload to Walrus
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 p-3 rounded-xl border-2 bg-gray-100 border-gray-300">
-                          <span className="material-symbols-outlined text-gray-400">radio_button_unchecked</span>
-                          <span className="font-semibold text-gray-500">Step 3: Sign Transaction</span>
-                        </div>
-                        <div className="flex items-center gap-3 p-3 rounded-xl border-2 bg-gray-100 border-gray-300">
-                          <span className="material-symbols-outlined text-gray-400">radio_button_unchecked</span>
-                          <span className="font-semibold text-gray-500">Step 4: Complete</span>
-                        </div>
-                      </div>
-
-                      {uploadError && (
-                        <div className="bg-red-100 border-2 border-red-400 text-red-700 px-4 py-3 rounded-xl mb-4">
-                          <p className="font-bold flex items-center gap-2">
-                            <span className="material-symbols-outlined">error</span>
-                            Error
-                          </p>
-                          <p className="text-sm">{uploadError}</p>
-                        </div>
-                      )}
-
-                      <button
-                        onClick={handleSignTransaction}
-                        disabled={isProcessing || isSigning}
-                        className="w-full h-12 rounded-xl border-2 border-ink bg-primary text-white font-bold shadow-hard-sm hover:translate-y-0.5 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      >
-                        {isProcessing || isSigning ? (
-                          <>
-                            <span className="material-symbols-outlined animate-spin">sync</span>
-                            Processing...
-                          </>
-                        ) : (
-                          'Sign & Upload'
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {uploadStep === 'complete' && blobId && (
-                  <div className="space-y-6">
-                    <div className="bg-green-100 border-2 border-green-500 rounded-xl p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <span className="material-symbols-outlined text-green-600 text-3xl">check_circle</span>
-                        <div>
-                          <h3 className="font-bold uppercase text-lg text-ink">Upload Complete</h3>
-                          <p className="text-sm text-gray-600">Your data is stored on Walrus</p>
-                        </div>
-                      </div>
-
-                      <div className="bg-white rounded-lg p-4 border-2 border-ink mb-4">
-                        <p className="text-sm text-gray-500 mb-1">Status</p>
-                        <p className="font-semibold text-ink">Successfully uploaded to Walrus!</p>
-                      </div>
-
-                      <div className="bg-gray-100 rounded-xl p-4 border-2 border-ink">
-                        <h4 className="font-bold uppercase text-sm mb-3 text-ink">Dataset Summary</h4>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <p className="text-gray-500">Total Size</p>
-                            <p className="font-semibold text-ink">{formatSize(totalSizeBytes)}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-500">Blob ID</p>
-                            <p className="font-mono text-xs text-ink">{blobId.slice(0, 16)}...</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                      <button
-                        onClick={closeModal}
-                        className="flex-1 h-12 rounded-xl border-2 border-ink bg-white text-ink font-bold hover:bg-gray-100 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleFinalSubmit}
-                        disabled={isCreating}
-                        className="flex-1 h-12 rounded-xl border-2 border-ink bg-primary text-white font-bold shadow-hard-sm hover:translate-y-0.5 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      >
-                        {isCreating ? (
-                          <>
-                            <span className="material-symbols-outlined animate-spin">sync</span>
-                            Creating...
-                          </>
-                        ) : (
-                          `List for ${formData.priceSUI || '0'} SUI`
-                        )}
-                      </button>
-                    </div>
-
-                    {createError && (
-                      <div className="bg-red-100 border-2 border-red-400 text-red-700 px-4 py-3 rounded-xl">
-                        <p className="font-bold">Error</p>
-                        <p>{createError.message}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
             )}
           </div>
         </div>
@@ -727,9 +639,10 @@ export default function MyDataPage() {
           >
             <div className="absolute inset-2 rounded-full border-2 border-dashed border-white/30 animate-spin" style={{ animationDuration: '10s' }}></div>
             <div className="absolute inset-4 rounded-full border border-white/10 animate-spin" style={{ animationDuration: '8s', animationDirection: 'reverse' }}></div>
-
-            <span id="anim-icon" className="material-symbols-outlined text-8xl text-white relative z-10">lock</span>
-
+            
+            {/* Icon */}
+            <span ref={iconRef} className="material-symbols-outlined !text-[120px] text-white relative z-10 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">lock</span>
+            
             <svg className="absolute inset-0 h-full w-full animate-spin" style={{ animationDuration: '20s', animationDirection: 'reverse' }} viewBox="0 0 100 100" width="100" height="100">
               <path id="circlePathCommon" d="M 50, 50 m -35, 0 a 35,35 0 1,1 70,0 a 35,35 0 1,1 -70,0" fill="transparent" />
               <text fill="white" fontSize="8" fontWeight="bold" letterSpacing="2">
@@ -762,9 +675,22 @@ export default function MyDataPage() {
             <span className="font-mono text-xs text-white">HASH: 0x{blobId?.slice(0, 4) || '0000'}...{blobId?.slice(-4) || '0000'}</span>
             <span className="font-mono text-xs text-white">NODE: SUI-TESTNET-01</span>
           </div>
-        </div >
-      )
-      }
+        </div>
+      )}
+
+      {/* Transaction Status Modal */}
+      <TransactionStatus
+        steps={txSteps.steps}
+        currentStep={txSteps.currentStep}
+        isVisible={showTxStatus}
+        error={txSteps.error}
+        onClose={() => {
+          if (!txSteps.isActive) {
+            setShowTxStatus(false);
+            txSteps.reset();
+          }
+        }}
+      />
     </>
   );
 }

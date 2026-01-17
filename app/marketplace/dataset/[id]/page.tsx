@@ -13,7 +13,7 @@ export default function DatasetDetailPage() {
   const asset = DATA_ASSETS.find(a => a.id === id);
 
   const [isBuyModalOpen, setIsBuyModalOpen] = useState(false);
-  const [isDownloadProcessing, setIsDownloadProcessing] = useState(false);
+  const [processingMode, setProcessingMode] = useState<'download' | 'preview' | null>(null);
 
   // Refs for animation
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -30,16 +30,25 @@ export default function DatasetDetailPage() {
   };
 
   const handleDownloadClick = () => {
-    setIsDownloadProcessing(true);
+    setProcessingMode('download');
+  };
+
+  const handlePreviewClick = () => {
+    setProcessingMode('preview');
   };
 
   useEffect(() => {
-    if (isDownloadProcessing && asset) {
+    if (processingMode && asset) {
       const tl = gsap.timeline({
         onComplete: () => {
           setTimeout(() => {
-            setIsDownloadProcessing(false);
-            alert(`Downloading ${asset.title}...`);
+            const mode = processingMode;
+            setProcessingMode(null);
+            if (mode === 'download') {
+              alert(`Downloading ${asset.title}...`);
+            } else {
+              alert(`Preview for ${asset.title} is ready!`);
+            }
           }, 800);
         }
       });
@@ -58,20 +67,30 @@ export default function DatasetDetailPage() {
           ease: "back.out(1.7)" 
         })
         .add(() => {
-           if(textRef.current) textRef.current.innerText = "VERIFYING OWNERSHIP";
-           if(subTextRef.current) subTextRef.current.innerText = "Checking wallet signature...";
+           if(textRef.current) textRef.current.innerText = processingMode === 'download' ? "VERIFYING OWNERSHIP" : "ESTABLISHING UPLINK";
+           if(subTextRef.current) subTextRef.current.innerText = processingMode === 'download' ? "Checking wallet signature..." : "Connecting to secure server...";
         })
         .to(sealRef.current, { rotation: 180, duration: 1, ease: "power2.inOut" })
         .to(progressRef.current, { width: "40%", duration: 1 }, "<")
         .to(iconRef.current, { scale: 0, rotation: 90, duration: 0.2 })
         .add(() => {
-           if(iconRef.current) iconRef.current.innerText = "lock_open";
-           if(textRef.current) textRef.current.innerText = "DECRYPTING SHARDS";
-           if(subTextRef.current) subTextRef.current.innerText = "Reassembling Walrus Protocol data...";
+           if(iconRef.current) iconRef.current.innerText = processingMode === 'download' ? "lock_open" : "cloud_upload";
+           if(textRef.current) textRef.current.innerText = processingMode === 'download' ? "DECRYPTING SHARDS" : "UPLOADING REQUEST";
+           if(subTextRef.current) subTextRef.current.innerText = processingMode === 'download' ? "Reassembling Walrus Protocol data..." : "Sending query parameters...";
         })
         .to(iconRef.current, { scale: 1, rotation: 0, duration: 0.2 })
-        .to(progressRef.current, { width: "75%", duration: 1.2 })
+        .to(progressRef.current, { width: "60%", duration: 1.2 })
         .to(sealRef.current, { x: 5, duration: 0.05, yoyo: true, repeat: 5 })
+        .to(iconRef.current, { scale: 0, rotation: -90, duration: 0.2 })
+        .add(() => {
+           if(processingMode === 'preview') {
+             if(iconRef.current) iconRef.current.innerText = "memory";
+             if(textRef.current) textRef.current.innerText = "DECODING STREAM";
+             if(subTextRef.current) subTextRef.current.innerText = "Processing server response...";
+           }
+        })
+        .to(iconRef.current, { scale: 1, rotation: 0, duration: 0.2 }) 
+        .to(progressRef.current, { width: "85%", duration: 1.2 })
         .to(sealRef.current, { 
            borderColor: "#ccff00",
            backgroundColor: "#101618",
@@ -82,20 +101,20 @@ export default function DatasetDetailPage() {
         .to(iconRef.current, { scale: 0, duration: 0.1 }, "<")
         .add(() => {
            if(iconRef.current) {
-             iconRef.current.innerText = "download";
+             iconRef.current.innerText = processingMode === 'download' ? "download" : "visibility";
              iconRef.current.style.color = "#ccff00";
            }
            if(textRef.current) {
-             textRef.current.innerText = "DECRYPTION COMPLETE";
+             textRef.current.innerText = processingMode === 'download' ? "DECRYPTION COMPLETE" : "PREVIEW READY";
              textRef.current.classList.add("text-accent-lime");
            }
-           if(subTextRef.current) subTextRef.current.innerText = "Download starting now.";
+           if(subTextRef.current) subTextRef.current.innerText = processingMode === 'download' ? "Download starting now." : "Rendering data snippet...";
            if(pathRef.current) pathRef.current.style.fill = "#ccff00";
         })
         .to(iconRef.current, { scale: 1.5, duration: 0.4, ease: "elastic.out(1, 0.5)" })
         .to(progressRef.current, { width: "100%", backgroundColor: "#ccff00", duration: 0.3 });
     }
-  }, [isDownloadProcessing, asset]);
+  }, [processingMode, asset]);
 
   if (!asset) {
     return (
@@ -132,8 +151,8 @@ export default function DatasetDetailPage() {
               </span>
             )}
           </div>
-          <h2 className="text-4xl font-black leading-tight text-white drop-shadow-sm">{asset.title}</h2>
-          <p className="text-sm font-bold text-white opacity-90">Updated: {asset.updatedAt || 'Recently'}</p>
+          <h2 className="text-4xl font-black leading-tight text-ink drop-shadow-sm">{asset.title}</h2>
+          <p className="text-sm font-bold text-ink opacity-90">Updated: {asset.updatedAt || 'Recently'}</p>
         </div>
         
         <hr className="border-t-2 border-ink border-dashed opacity-20" />
@@ -158,11 +177,11 @@ export default function DatasetDetailPage() {
         
         <div className="mt-auto flex flex-col gap-4">
           <div className="flex flex-col">
-            <span className="text-sm font-bold uppercase tracking-widest text-white opacity-80">Current Price</span>
+            <span className="text-sm font-bold uppercase tracking-widest text-ink opacity-80">Current Price</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-6xl font-black tracking-tighter text-white">{asset.price} {asset.currency}</span>
+              <span className="text-6xl font-black tracking-tighter text-ink">{asset.price} {asset.currency}</span>
             </div>
-            <span className="text-sm font-bold text-white opacity-80">≈ ${(asset.price * 1.25).toFixed(2)} USD</span>
+            <span className="text-sm font-bold text-ink opacity-80">≈ ${(asset.price * 1.25).toFixed(2)} USD</span>
           </div>
           <button 
              onClick={() => setIsBuyModalOpen(true)}
@@ -190,6 +209,13 @@ export default function DatasetDetailPage() {
                 style={{ backgroundImage: `url('${asset.imageUrl}')` }}
               ></div>
               <div className="absolute bottom-4 right-4 flex gap-2">
+                <button 
+                   onClick={handlePreviewClick}
+                   className="h-10 px-4 bg-white border-2 border-ink rounded-lg flex items-center justify-center gap-2 hover:bg-accent-lime transition-colors shadow-hard-sm text-ink"
+                >
+                  <span className="material-symbols-outlined text-[18px] text-ink">visibility</span>
+                  <span className="font-bold text-xs uppercase">Preview</span>
+                </button>
                 <button className="h-10 w-10 bg-white border-2 border-ink rounded-lg flex items-center justify-center hover:bg-accent-lime transition-colors shadow-hard-sm">
                   <span className="material-symbols-outlined">fullscreen</span>
                 </button>
@@ -373,7 +399,7 @@ export default function DatasetDetailPage() {
       )}
 
       {/* Decryption Animation Overlay */}
-      {isDownloadProcessing && (
+      {processingMode && (
          <div 
            ref={overlayRef}
            className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-ink/95 backdrop-blur-md transition-colors opacity-0"
@@ -395,7 +421,7 @@ export default function DatasetDetailPage() {
                   <path id="circlePath2" d="M 50, 50 m -35, 0 a 35,35 0 1,1 70,0 a 35,35 0 1,1 -70,0" fill="transparent" />
                   <text fill="white" fontSize="8" fontWeight="bold" letterSpacing="3">
                      <textPath ref={pathRef} href="#circlePath2" startOffset="0%">
-                        SECURE DECRYPTION • WALRUS PROTOCOL •
+                        {processingMode === 'preview' ? 'SECURE PREVIEW • REMOTE DECRYPTION •' : 'SECURE DECRYPTION • WALRUS PROTOCOL •'}
                      </textPath>
                   </text>
                </svg>
