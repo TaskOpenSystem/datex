@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "datex",
@@ -9,6 +10,7 @@
         "@mysten/enoki": "^0.13.0",
         "@mysten/kiosk": "^0.14.6",
         "@mysten/payment-kit": "^0.0.20",
+        "@mysten/seal": "^0.9.6",
         "@mysten/sui": "^1.45.2",
         "@mysten/walrus": "^0.9.0",
         "@mysten/zksend": "^0.14.12",
@@ -230,6 +232,8 @@
     "@mysten/ledgerjs-hw-app-sui": ["@mysten/ledgerjs-hw-app-sui@0.7.0", "", { "dependencies": { "@ledgerhq/devices": "^8.6.1", "@ledgerhq/errors": "^6.26.0", "@ledgerhq/hw-bolos": "^6.32.8", "@ledgerhq/hw-transport": "^6.31.10", "@ledgerhq/ledger-cal-service": "^1.6.0", "@ledgerhq/ledger-trust-service": "^0.3.14", "fast-sha256": "^1.3.0", "semver": "^7" } }, "sha512-Z2ydxg35U2tk3pThsWzPewticDnHWqAeLlh2Vp4NhYU/YFyoVxK9obh21pnvU/hmRzL+BRpYlwbX5Nuo77+lwA=="],
 
     "@mysten/payment-kit": ["@mysten/payment-kit@0.0.20", "", { "dependencies": { "@mysten/bcs": "1.9.2", "@mysten/sui": "1.45.2" } }, "sha512-nouYDzjRCVm1w4SByJHe/3F6/UGXznPfVM66mZQ/aPPyx7S7pFECqKz/66pWc9a2V/iDf5W4NGjC+Tkk/wzxAQ=="],
+
+    "@mysten/seal": ["@mysten/seal@0.9.6", "", { "dependencies": { "@mysten/bcs": "1.9.2", "@mysten/sui": "1.45.2", "@noble/curves": "=1.9.4", "@noble/hashes": "^1.8.0" } }, "sha512-qw4JiEL8NibuAASWTbYC9xbtMMIAgbfNNopZomiCZqIgJFA/q6lWCzBqVhzU5POB7UCwLZjskwZJ+kME80wsCg=="],
 
     "@mysten/signers": ["@mysten/signers@0.6.2", "", { "dependencies": { "@google-cloud/kms": "^4.5.0", "@mysten/ledgerjs-hw-app-sui": "0.7.0", "@mysten/sui": "1.45.2", "@noble/curves": "=1.9.4", "@noble/hashes": "^1.8.0", "asn1-ts": "^8.0.2" } }, "sha512-TFdsoixjly/PHSRDF93wAl/6+cYGS/4J2PCg8lLoxmrLQZCDqIKYwP/dy1243qkXzyeN9d0Ri5IJvozcDpoY/g=="],
 
