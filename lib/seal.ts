@@ -93,8 +93,8 @@ export async function encryptWithSeal(
         data,
     })
 
-    // Serialize the encrypted object to bytes for storage
-    const encryptedBytes = encryptedObject.serialize()
+    // encryptedObject is already a Uint8Array
+    const encryptedBytes = encryptedObject
 
     console.log('[Seal] Encrypted:', {
         originalSize: data.length,
@@ -170,7 +170,7 @@ export async function encryptFile(
     const encryptedBytes = await encryptWithSeal(data, policyObjectId)
 
     return {
-        encryptedBlob: new Blob([encryptedBytes], { type: 'application/octet-stream' }),
+        encryptedBlob: new Blob([encryptedBytes.slice()], { type: 'application/octet-stream' }),
         policyId: policyObjectId,
     }
 }
@@ -197,20 +197,32 @@ export async function encryptData(
 /**
  * Create a session key for decryption
  * Used by buyers to decrypt purchased data
+ * 
+ * Uses the two-step flow since wallet adapters provide signPersonalMessage
+ * rather than a full Signer object
  */
 export async function createSessionKey(
     userAddress: string,
-    signer: { signPersonalMessage: (msg: { message: Uint8Array }) => Promise<{ signature: string }> }
+    signPersonalMessage: (msg: { message: Uint8Array }) => Promise<{ signature: string }>
 ): Promise<SessionKey> {
     const suiClient = getSuiClient()
 
+    // Step 1: Create session key without signer
     const sessionKey = await SessionKey.create({
         address: userAddress,
         packageId: SEAL_POLICY_PACKAGE_ID,
         ttlMin: 10,
-        signer,
         suiClient,
     })
+
+    // Step 2: Get the personal message that needs to be signed
+    const personalMessage = sessionKey.getPersonalMessage()
+
+    // Step 3: Sign the message using the wallet adapter's signPersonalMessage
+    const { signature } = await signPersonalMessage({ message: personalMessage })
+
+    // Step 4: Set the signature on the session key
+    await sessionKey.setPersonalMessageSignature(signature)
 
     return sessionKey
 }
@@ -247,14 +259,14 @@ export async function decryptFile(
     policyObjectId: string,
     purchaseReceiptId: string,
     userAddress: string,
-    signer: { signPersonalMessage: (msg: { message: Uint8Array }) => Promise<{ signature: string }> },
+    signPersonalMessage: (msg: { message: Uint8Array }) => Promise<{ signature: string }>,
     originalType: string = 'application/octet-stream'
 ): Promise<Blob> {
     const arrayBuffer = await encryptedBlob.arrayBuffer()
     const encryptedBytes = new Uint8Array(arrayBuffer)
 
     // Create session key
-    const sessionKey = await createSessionKey(userAddress, signer)
+    const sessionKey = await createSessionKey(userAddress, signPersonalMessage)
 
     // Build seal_approve transaction
     const tx = buildSealApproveTransaction(policyObjectId, purchaseReceiptId)
@@ -263,7 +275,7 @@ export async function decryptFile(
     // Decrypt
     const decrypted = await decryptWithSeal(encryptedBytes, sessionKey, txBytes)
 
-    return new Blob([decrypted], { type: originalType })
+    return new Blob([decrypted.slice()], { type: originalType })
 }
 
 /**
@@ -274,9 +286,9 @@ export async function decryptData(
     policyObjectId: string,
     purchaseReceiptId: string,
     userAddress: string,
-    signer: { signPersonalMessage: (msg: { message: Uint8Array }) => Promise<{ signature: string }> }
+    signPersonalMessage: (msg: { message: Uint8Array }) => Promise<{ signature: string }>
 ): Promise<Uint8Array> {
-    const sessionKey = await createSessionKey(userAddress, signer)
+    const sessionKey = await createSessionKey(userAddress, signPersonalMessage)
     const tx = buildSealApproveTransaction(policyObjectId, purchaseReceiptId)
     const txBytes = await tx.build({ client: getSuiClient(), onlyTransactionKind: true })
 
