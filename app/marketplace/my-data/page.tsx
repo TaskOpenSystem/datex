@@ -3,7 +3,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
-import { useOwnedListings, useAccountBalance } from '@/hooks/useMarketplace';
+import { useOwnedListings, useAccountBalance, usePurchasedDatasets } from '@/hooks/useMarketplace';
 import { formatSize, bytesToHex, formatPrice } from '@/lib/marketplace';
 import { getFullnodeUrl } from '@mysten/sui/client';
 import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc';
@@ -58,6 +58,7 @@ export default function MyDataPage() {
   const { mutate: signAndExecute, isPending: isSigning } = useSignAndExecuteTransaction();
   const { data: listings, isLoading, refetch } = useOwnedListings(account?.address);
   const { data: balance } = useAccountBalance();
+  const { data: purchases, isLoading: isPurchasesLoading } = usePurchasedDatasets(account?.address);
 
   const [activeTab, setActiveTab] = useState<Tab>('uploads');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -583,27 +584,116 @@ export default function MyDataPage() {
           <section>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold tracking-tight text-ink flex items-center gap-2">
-                Recent Purchases <span className="text-gray-400 text-base font-normal ml-1">(0 items)</span>
+                Recent Purchases <span className="text-gray-400 text-base font-normal ml-1">({purchases?.length || 0} items)</span>
               </h2>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              <article className="flex flex-col rounded-xl border-2 border-ink bg-white p-4 shadow-hard-sm opacity-60">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="h-12 w-12 rounded-lg border-2 border-ink bg-gray-200 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-gray-400">shopping_cart</span>
+              {isPurchasesLoading && (
+                <>
+                  {[1, 2, 3].map(i => (
+                    <article key={i} className="flex flex-col rounded-xl border-2 border-ink bg-white overflow-hidden animate-pulse">
+                      <div className="h-32 bg-gray-200" />
+                      <div className="p-4 flex flex-col flex-1">
+                        <div className="h-5 bg-gray-200 rounded w-3/4 mb-2" />
+                        <div className="h-3 bg-gray-100 rounded w-1/2 mb-3" />
+                        <div className="flex gap-2 mt-auto pt-3 border-t border-gray-200">
+                          <div className="flex-1 h-9 bg-gray-200 rounded-lg" />
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </>
+              )}
+
+              {!isPurchasesLoading && purchases && purchases.length > 0 && purchases.map(purchase => (
+                <article key={purchase.id} className="flex flex-col rounded-xl border-2 border-ink bg-white overflow-hidden">
+                  {/* Header */}
+                  <div className="relative h-32 bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center">
+                    <div className="absolute inset-0 opacity-20">
+                      <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <path d="M0,50 Q25,30 50,50 T100,50" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-white" />
+                        <path d="M0,60 Q25,40 50,60 T100,60" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-white" />
+                      </svg>
+                    </div>
+                    <span className="material-symbols-outlined text-5xl text-white/80">shopping_bag</span>
+                    <span className="absolute top-3 left-3 rounded bg-green-500 text-white px-2 py-0.5 text-[10px] font-bold">PURCHASED</span>
                   </div>
-                  <span className="rounded bg-gray-100 text-gray-600 px-2 py-1 text-[10px] font-bold border border-gray-200">PENDING</span>
-                </div>
-                <h3 className="text-lg font-bold text-gray-400 mb-1">No purchases yet</h3>
-                <p className="text-sm text-gray-400 mb-4">Start exploring the marketplace to find datasets.</p>
-                <Link
-                  href="/marketplace"
-                  className="mt-auto w-full h-10 rounded-lg border-2 border-ink bg-gray-100 text-gray-500 font-bold transition-colors flex items-center justify-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-lg">explore</span> Browse Marketplace
-                </Link>
-              </article>
+
+                  {/* Content */}
+                  <div className="p-4 flex flex-col flex-1">
+                    <h3 className="text-base font-bold text-ink mb-1 line-clamp-2">
+                      {purchase.dataset?.name || 'Dataset'}
+                    </h3>
+
+                    {/* IDs */}
+                    <p className="text-[10px] text-gray-400 font-mono mb-1 truncate" title={purchase.datasetId}>
+                      Dataset: {purchase.datasetId.slice(0, 8)}...{purchase.datasetId.slice(-6)}
+                    </p>
+                    <p className="text-[10px] text-gray-400 font-mono mb-3 truncate" title={purchase.id}>
+                      Receipt: {purchase.id.slice(0, 8)}...{purchase.id.slice(-6)}
+                    </p>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-2 gap-4 py-3 border-t border-gray-200">
+                      <div>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Paid</p>
+                        <p className="text-sm font-bold text-ink">{formatPrice(purchase.price)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">Size</p>
+                        <p className="text-sm font-bold text-accent-lime">
+                          {purchase.dataset ? formatSize(Number(purchase.dataset.totalSize)) : '-'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Purchase Date */}
+                    <div className="pt-3 border-t border-gray-200 text-xs text-gray-400">
+                      <span className="material-symbols-outlined text-sm align-middle mr-1">schedule</span>
+                      {new Date(purchase.timestamp).toLocaleDateString()}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2 mt-auto pt-3 border-t border-gray-200">
+                      <Link
+                        href={`/marketplace/dataset/${purchase.datasetId}`}
+                        className="flex-1 h-9 rounded-lg border-2 border-ink bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-sm">download</span>
+                        Download
+                      </Link>
+                      <a
+                        href={`https://suiscan.xyz/testnet/object/${purchase.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="h-9 w-9 rounded-lg border-2 border-ink bg-white text-ink hover:bg-gray-50 transition-colors flex items-center justify-center"
+                        title="View Receipt on SuiScan"
+                      >
+                        <span className="material-symbols-outlined text-sm">open_in_new</span>
+                      </a>
+                    </div>
+                  </div>
+                </article>
+              ))}
+
+              {!isPurchasesLoading && (!purchases || purchases.length === 0) && (
+                <article className="flex flex-col rounded-xl border-2 border-ink bg-white p-4 shadow-hard-sm opacity-60">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="h-12 w-12 rounded-lg border-2 border-ink bg-gray-200 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-gray-400">shopping_cart</span>
+                    </div>
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-400 mb-1">No purchases yet</h3>
+                  <p className="text-sm text-gray-400 mb-4">Start exploring the marketplace to find datasets.</p>
+                  <Link
+                    href="/marketplace"
+                    className="mt-auto w-full h-10 rounded-lg border-2 border-ink bg-gray-100 text-gray-500 font-bold transition-colors flex items-center justify-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-lg">explore</span> Browse Marketplace
+                  </Link>
+                </article>
+              )}
             </div>
           </section>
         )}
