@@ -18,7 +18,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Data Exchange - Unlock Your Data",
-  description: "Monetize your insights securely. Built on Walrus, Seal, and Nautilus for unstoppable decentralized data trading.",
+  description:
+    "Monetize your insights securely. Built on Walrus, Seal, and Nautilus for unstoppable decentralized data trading.",
 };
 
 export default function RootLayout({
@@ -39,8 +40,8 @@ export default function RootLayout({
               (function() {
                 try {
                   const stored = localStorage.getItem('theme');
-                  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                  const shouldBeDark = stored === 'dark' || (!stored && prefersDark);
+                  // Default to light theme unless 'dark' is explicitly set
+                  const shouldBeDark = stored === 'dark';
                   if (shouldBeDark) {
                     document.documentElement.classList.add('dark');
                   } else {
