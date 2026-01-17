@@ -11,6 +11,8 @@ interface DecryptionPreviewModalProps {
   datasetName: string;
 }
 
+type Phase = 'uploading' | 'processing' | 'decrypting' | 'revealed' | 'error';
+
 export default function DecryptionPreviewModal({
   isOpen,
   onClose,
@@ -18,10 +20,11 @@ export default function DecryptionPreviewModal({
   blobId,
   datasetName,
 }: DecryptionPreviewModalProps) {
-  const [phase, setPhase] = useState<'decrypting' | 'revealed' | 'error'>('decrypting');
+  const [phase, setPhase] = useState<Phase>('uploading');
   const [previewData, setPreviewData] = useState<string>('');
   const [revealedText, setRevealedText] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [uploadProgress, setUploadProgress] = useState(0);
   
   const overlayRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -43,42 +46,20 @@ export default function DecryptionPreviewModal({
     }
   };
 
+  // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
-      setPhase('decrypting');
+      setPhase('uploading');
       setPreviewData('');
       setRevealedText('');
       setError('');
-      return;
+      setUploadProgress(0);
     }
+  }, [isOpen]);
 
-    // Fetch preview data
-    const fetchPreview = async () => {
-      try {
-        const res = await fetch('/api/debug/nautilus', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dataset_id: datasetId, blob_id: blobId }),
-        });
-        const data = await res.json();
-        
-        if (!res.ok) {
-          throw new Error(data.error || 'Failed to fetch preview');
-        }
-        
-        if (data?.response?.data?.preview_data) {
-          const decoded = decodeBase64(data.response.data.preview_data);
-          setPreviewData(decoded);
-        } else {
-          throw new Error('No preview data available');
-        }
-      } catch (err: any) {
-        setError(err.message || 'Failed to decrypt');
-        setPhase('error');
-      }
-    };
-
-    fetchPreview();
+  // Entry animation and fetch data
+  useEffect(() => {
+    if (!isOpen) return;
 
     // Entry animation
     const tl = gsap.timeline();
@@ -88,51 +69,96 @@ export default function DecryptionPreviewModal({
         { scale: 1, opacity: 1, y: 0, duration: 0.4, ease: 'back.out(1.7)' }
       );
 
-    return () => { tl.kill(); };
-  }, [isOpen, datasetId, blobId]);
+    // Start upload phase
+    setPhase('uploading');
+    
+    // Simulate upload progress - slower
+    let progress = 0;
+    const uploadInterval = setInterval(() => {
+      progress += Math.random() * 8 + 2; // Slower: 2-10% each step
+      if (progress >= 100) {
+        progress = 100;
+        clearInterval(uploadInterval);
+        setUploadProgress(100);
+        // Move to processing phase
+        setTimeout(() => setPhase('processing'), 500);
+      } else {
+        setUploadProgress(Math.min(progress, 95));
+      }
+    }, 400); // Slower: 400ms intervals
+
+    return () => {
+      tl.kill();
+      clearInterval(uploadInterval);
+    };
+  }, [isOpen]);
+
+  // Processing phase - fetch from Nautilus via API route (avoid CORS)
+  useEffect(() => {
+    if (!isOpen || phase !== 'processing') return;
+
+    const fetchPreview = async () => {
+      try {
+        const res = await fetch('/api/debug/nautilus', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            dataset_id: datasetId, 
+            blob_id: blobId 
+          }),
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to fetch preview');
+        }
+        
+        if (data?.response?.data?.preview_data) {
+          const decoded = decodeBase64(data.response.data.preview_data);
+          setPreviewData(decoded);
+          setTimeout(() => setPhase('decrypting'), 500);
+        } else {
+          throw new Error('No preview data available');
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Failed to decrypt';
+        setError(message);
+        setPhase('error');
+      }
+    };
+
+    const timer = setTimeout(fetchPreview, 2500);
+    return () => clearTimeout(timer);
+  }, [isOpen, phase, datasetId, blobId]);
 
   // Decryption animation
   useEffect(() => {
     if (!isOpen || phase !== 'decrypting' || !previewData) return;
 
-    const lines = previewData.split('\n').slice(0, 15); // Limit to 15 lines
+    const lines = previewData.split('\n').slice(0, 15);
     const totalChars = lines.join('\n').length;
     let currentIndex = 0;
 
-    // Initialize with cipher text
     if (cipherTextRef.current) {
       cipherTextRef.current.innerHTML = lines.map(line => 
         `<div class="cipher-line">${generateCipherText(line.length || 20)}</div>`
       ).join('');
     }
 
-    // Progress bar animation
-    gsap.to(progressRef.current, {
-      width: '100%',
-      duration: 3,
-      ease: 'power1.inOut',
-    });
+    gsap.to(progressRef.current, { width: '100%', duration: 3, ease: 'power1.inOut' });
+    gsap.to(scanLineRef.current, { top: '100%', duration: 3, ease: 'power1.inOut' });
 
-    // Scan line animation
-    gsap.to(scanLineRef.current, {
-      top: '100%',
-      duration: 3,
-      ease: 'power1.inOut',
-      repeat: 0,
-    });
-
-    // Reveal text character by character
     const revealInterval = setInterval(() => {
       if (currentIndex >= totalChars) {
         clearInterval(revealInterval);
-        setTimeout(() => setPhase('revealed'), 500);
+        setTimeout(() => setPhase('revealed'), 800);
         return;
       }
 
       const revealed = lines.join('\n').slice(0, currentIndex + 1);
       setRevealedText(revealed);
 
-      // Update cipher text with remaining encrypted chars
       if (cipherTextRef.current) {
         const cipherLines = lines.map((line, lineIdx) => {
           const lineStart = lines.slice(0, lineIdx).join('\n').length + (lineIdx > 0 ? 1 : 0);
@@ -151,23 +177,60 @@ export default function DecryptionPreviewModal({
         cipherTextRef.current.innerHTML = cipherLines.join('');
       }
 
-      currentIndex += Math.floor(Math.random() * 3) + 1; // Random speed variation
-    }, 20);
+      currentIndex += Math.floor(Math.random() * 3) + 1; // 1-3 chars at a time
+    }, 20); // 20ms intervals
 
     return () => clearInterval(revealInterval);
   }, [isOpen, phase, previewData]);
 
-  // Revealed phase animation
   useEffect(() => {
     if (phase !== 'revealed') return;
-
-    gsap.fromTo(revealedRef.current,
-      { opacity: 0.8 },
-      { opacity: 1, duration: 0.5 }
-    );
+    gsap.fromTo(revealedRef.current, { opacity: 0.8 }, { opacity: 1, duration: 0.5 });
   }, [phase]);
 
   if (!isOpen) return null;
+
+  const getPhaseInfo = () => {
+    switch (phase) {
+      case 'uploading':
+        return {
+          icon: 'cloud_upload',
+          title: 'Uploading to TEE Server',
+          subtitle: 'Sending encrypted data to Nautilus TEE...',
+          color: 'text-blue-400',
+        };
+      case 'processing':
+        return {
+          icon: 'memory',
+          title: 'Processing in TEE',
+          subtitle: 'Nautilus server decrypting data in secure enclave...',
+          color: 'text-purple-400',
+        };
+      case 'decrypting':
+        return {
+          icon: 'lock_open',
+          title: 'Receiving Decrypted Data',
+          subtitle: 'Rendering preview from TEE response...',
+          color: 'text-accent-lime',
+        };
+      case 'revealed':
+        return {
+          icon: 'visibility',
+          title: 'Preview Ready',
+          subtitle: 'Partial data decrypted by Nautilus TEE',
+          color: 'text-accent-lime',
+        };
+      case 'error':
+        return {
+          icon: 'error',
+          title: 'Decryption Failed',
+          subtitle: error,
+          color: 'text-red-400',
+        };
+    }
+  };
+
+  const phaseInfo = getPhaseInfo();
 
   return (
     <div 
@@ -182,16 +245,14 @@ export default function DecryptionPreviewModal({
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-900/80">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-accent-lime/20 border border-accent-lime/30 flex items-center justify-center">
-              <span className="material-symbols-outlined text-accent-lime">
-                {phase === 'decrypting' ? 'lock_open' : phase === 'revealed' ? 'visibility' : 'error'}
+            <div className={`h-10 w-10 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-center ${phaseInfo.color}`}>
+              <span className={`material-symbols-outlined ${phase === 'uploading' || phase === 'processing' ? 'animate-pulse' : ''}`}>
+                {phaseInfo.icon}
               </span>
             </div>
             <div>
               <h3 className="font-bold text-white">{datasetName}</h3>
-              <p className="text-xs text-gray-500 font-mono">
-                {phase === 'decrypting' ? 'Decrypting preview...' : phase === 'revealed' ? 'Preview ready' : 'Decryption failed'}
-              </p>
+              <p className={`text-xs font-mono ${phaseInfo.color}`}>{phaseInfo.title}</p>
             </div>
           </div>
           <button 
@@ -202,27 +263,8 @@ export default function DecryptionPreviewModal({
           </button>
         </div>
 
-        {/* Progress bar */}
-        {phase === 'decrypting' && (
-          <div className="h-1 bg-gray-800 relative overflow-hidden">
-            <div 
-              ref={progressRef}
-              className="h-full w-0 bg-gradient-to-r from-accent-lime to-primary"
-            />
-          </div>
-        )}
-
         {/* Content */}
         <div className="relative h-[400px] overflow-hidden bg-gray-950">
-          {/* Scan line effect */}
-          {phase === 'decrypting' && (
-            <div 
-              ref={scanLineRef}
-              className="absolute left-0 right-0 h-px bg-accent-lime shadow-[0_0_10px_2px_rgba(204,255,0,0.5)] z-20"
-              style={{ top: 0 }}
-            />
-          )}
-
           {/* Grid background */}
           <div className="absolute inset-0 opacity-5">
             <div className="w-full h-full" style={{
@@ -231,7 +273,132 @@ export default function DecryptionPreviewModal({
             }} />
           </div>
 
-          {phase === 'error' ? (
+          {/* Upload/Processing Phase UI */}
+          {(phase === 'uploading' || phase === 'processing') && (
+            <div className="flex flex-col items-center justify-center h-full gap-6 px-8">
+              {/* Server Animation */}
+              <div className="relative">
+                {/* TEE Server Icon */}
+                <div className="relative h-32 w-32 rounded-2xl bg-gray-800 border-2 border-gray-700 flex items-center justify-center">
+                  <span className={`material-symbols-outlined text-6xl ${phaseInfo.color}`}>
+                    {phase === 'uploading' ? 'dns' : 'security'}
+                  </span>
+                  
+                  {/* Animated rings */}
+                  <div className="absolute inset-0 rounded-2xl border-2 border-blue-500/30 animate-ping" style={{ animationDuration: '2s' }} />
+                  <div className="absolute -inset-2 rounded-2xl border border-purple-500/20 animate-pulse" />
+                  
+                  {/* Data packets animation for upload */}
+                  {phase === 'uploading' && (
+                    <>
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col gap-1">
+                        <div className="h-2 w-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <div className="h-2 w-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '100ms' }} />
+                        <div className="h-2 w-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '200ms' }} />
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* Processing spinner */}
+                  {phase === 'processing' && (
+                    <div className="absolute inset-0 rounded-2xl border-t-2 border-purple-500 animate-spin" style={{ animationDuration: '1s' }} />
+                  )}
+                </div>
+              </div>
+
+              {/* Status Text */}
+              <div className="text-center">
+                <h4 className={`text-xl font-bold ${phaseInfo.color}`}>{phaseInfo.title}</h4>
+                <p className="text-sm text-gray-500 mt-1">{phaseInfo.subtitle}</p>
+              </div>
+
+              {/* Progress Bar for Upload */}
+              {phase === 'uploading' && (
+                <div className="w-full max-w-xs">
+                  <div className="flex justify-between text-xs text-gray-500 mb-2">
+                    <span>Uploading request...</span>
+                    <span>{Math.round(uploadProgress)}%</span>
+                  </div>
+                  <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-blue-500 rounded-full transition-all duration-200"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Processing Info */}
+              {phase === 'processing' && (
+                <div className="flex flex-col gap-2 text-xs font-mono text-gray-500">
+                  <div className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-pulse" />
+                    <span>Verifying TEE attestation...</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-pulse" style={{ animationDelay: '200ms' }} />
+                    <span>Decrypting with Seal Protocol...</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 bg-purple-500 rounded-full animate-pulse" style={{ animationDelay: '400ms' }} />
+                    <span>Preparing preview response...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Server Info */}
+              <div className="flex items-center gap-4 text-xs text-gray-600 mt-4">
+                <span className="flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm">location_on</span>
+                  Nautilus TEE Server
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm">lock</span>
+                  Secure Enclave
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Decryption/Revealed Phase UI */}
+          {(phase === 'decrypting' || phase === 'revealed') && (
+            <>
+              {/* Scan line effect */}
+              {phase === 'decrypting' && (
+                <div 
+                  ref={scanLineRef}
+                  className="absolute left-0 right-0 h-px bg-accent-lime shadow-[0_0_10px_2px_rgba(204,255,0,0.5)] z-20"
+                  style={{ top: 0 }}
+                />
+              )}
+
+              {/* Progress bar */}
+              {phase === 'decrypting' && (
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gray-800">
+                  <div ref={progressRef} className="h-full w-0 bg-accent-lime" />
+                </div>
+              )}
+
+              <div className="relative h-full p-6 overflow-auto font-mono text-sm">
+                <div 
+                  ref={cipherTextRef}
+                  className="absolute inset-6 text-accent-lime/30 whitespace-pre-wrap break-all leading-relaxed pointer-events-none"
+                />
+                <div 
+                  ref={revealedRef}
+                  className="relative z-10 text-accent-lime whitespace-pre-wrap break-all leading-relaxed"
+                >
+                  {revealedText}
+                  {phase === 'decrypting' && (
+                    <span className="inline-block w-2 h-4 bg-accent-lime ml-0.5 animate-pulse" />
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Error Phase UI */}
+          {phase === 'error' && (
             <div className="flex flex-col items-center justify-center h-full gap-4">
               <span className="material-symbols-outlined text-6xl text-red-500">error</span>
               <p className="text-red-400 font-bold">{error}</p>
@@ -241,25 +408,6 @@ export default function DecryptionPreviewModal({
               >
                 Close
               </button>
-            </div>
-          ) : (
-            <div className="relative h-full p-6 overflow-auto font-mono text-sm">
-              {/* Cipher text layer */}
-              <div 
-                ref={cipherTextRef}
-                className="absolute inset-6 text-accent-lime/30 whitespace-pre-wrap break-all leading-relaxed pointer-events-none"
-              />
-              
-              {/* Revealed text layer */}
-              <div 
-                ref={revealedRef}
-                className="relative z-10 text-accent-lime whitespace-pre-wrap break-all leading-relaxed"
-              >
-                {revealedText}
-                {phase === 'decrypting' && (
-                  <span className="inline-block w-2 h-4 bg-accent-lime ml-0.5 animate-pulse" />
-                )}
-              </div>
             </div>
           )}
 
@@ -280,6 +428,10 @@ export default function DecryptionPreviewModal({
             <span className="flex items-center gap-1">
               <span className="material-symbols-outlined text-sm">cloud</span>
               Walrus Storage
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="material-symbols-outlined text-sm">memory</span>
+              Nautilus TEE
             </span>
           </div>
           {phase === 'revealed' && (
