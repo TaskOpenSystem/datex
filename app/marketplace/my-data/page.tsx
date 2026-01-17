@@ -251,6 +251,11 @@ export default function MyDataPage() {
 
       const tx = new Transaction();
 
+      console.log('=== CREATE LISTING (my-data) ===');
+      console.log('Price in MIST:', priceInMIST.toString());
+      console.log('Registry ID:', registryId);
+      console.log('Blob ID:', walrusBlobId || blobId);
+
       const listing = tx.moveCall({
         target: getMarketplaceTarget('list_dataset'),
         arguments: [
@@ -264,15 +269,27 @@ export default function MyDataPage() {
           tx.pure.u64(totalSizeBytes),
         ],
       });
+      console.log('list_dataset moveCall created');
 
-      tx.transferObjects([listing], account.address);
+      // Share listing object publicly so anyone can purchase
+      console.log('Adding public_share_object moveCall...');
+      tx.moveCall({
+        target: '0x2::transfer::public_share_object',
+        typeArguments: [`${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::DatasetListing`],
+        arguments: [listing],
+      });
+      console.log('public_share_object added');
 
+      console.log('Executing transaction...');
       signAndExecute(
         { transaction: tx },
         {
           onSuccess: (result) => {
+            console.log('=== CREATE LISTING SUCCESS ===');
+            console.log('Result:', result);
             const effects = result.effects as { created?: Array<{ reference: { objectId: string } }> } | undefined;
             const newListingId = effects?.created?.[0]?.reference?.objectId || result.digest;
+            console.log('New listing ID:', newListingId);
             
             addLog('listing', 'success', 'Listing created!', `ID: ${newListingId.slice(0, 16)}...`);
             setListingId(newListingId);
@@ -283,6 +300,8 @@ export default function MyDataPage() {
             setIsProcessing(false);
           },
           onError: (err) => {
+            console.error('=== CREATE LISTING ERROR ===');
+            console.error('Error:', err);
             addLog('listing', 'error', err.message || 'Failed to create listing');
             setUploadError(err.message || 'Failed to create listing');
             setIsProcessing(false);
@@ -290,6 +309,8 @@ export default function MyDataPage() {
         }
       );
     } catch (err) {
+      console.error('=== CREATE LISTING CATCH ERROR ===');
+      console.error('Error:', err);
       const errorMsg = err instanceof Error ? err.message : 'Failed to create listing';
       addLog('listing', 'error', errorMsg);
       setUploadError(errorMsg);

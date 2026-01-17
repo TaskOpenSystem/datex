@@ -110,7 +110,13 @@ export function useListDataset() {
         throw new Error('Registry not found');
       }
 
+      console.log('=== CREATE LISTING START ===');
+      console.log('Input:', input);
+      console.log('Registry ID:', registryId);
+      console.log('Account:', account.address);
+
       const priceInMIST = BigInt(Math.floor(input.priceSUI * Number(MIST_PER_SUI)));
+      console.log('Price in MIST:', priceInMIST.toString());
 
       // Build PTB with optimized structure
       const tx = new Transaction();
@@ -119,6 +125,7 @@ export function useListDataset() {
       tx.setGasBudget(10_000_000); // 0.01 SUI - sufficient for single listing
 
       // PTB: Create listing and transfer in single atomic transaction
+      console.log('Creating list_dataset moveCall...');
       const listing = tx.moveCall({
         target: getMarketplaceTarget('list_dataset'),
         arguments: [
@@ -132,21 +139,35 @@ export function useListDataset() {
           tx.pure.u64(input.totalSizeBytes),
         ],
       });
+      console.log('list_dataset moveCall created, listing result:', listing);
 
       // Share listing object publicly so anyone can purchase
+      console.log('Creating public_share_object moveCall...');
+      console.log('Type argument:', `${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::DatasetListing`);
       tx.moveCall({
         target: '0x2::transfer::public_share_object',
         typeArguments: [`${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::DatasetListing`],
         arguments: [listing],
       });
+      console.log('public_share_object moveCall added to transaction');
 
+      console.log('Executing transaction...');
       signAndExecute(
         { transaction: tx },
         {
           onSuccess: (result) => {
+            console.log('=== CREATE LISTING SUCCESS ===');
+            console.log('Transaction result:', result);
+            console.log('Digest:', result.digest);
+            console.log('Effects:', result.effects);
             const effects = result.effects as { created?: Array<{ reference: { objectId: string } }> } | undefined;
             const listingId = effects?.created?.[0]?.reference?.objectId || '';
+            console.log('Created listing ID:', listingId);
             onSuccess({ listingId, digest: result.digest });
+          },
+          onError: (error) => {
+            console.error('=== CREATE LISTING ERROR ===');
+            console.error('Error:', error);
           },
         }
       );
@@ -291,10 +312,15 @@ export function usePurchaseDataset() {
         throw new Error('Wallet not connected');
       }
 
+      console.log('=== PURCHASE DATASET ===');
+      console.log('Listing:', listing);
+      console.log('Buyer:', account.address);
+
       const tx = new Transaction();
       const [payment] = tx.splitCoins(tx.gas, [tx.pure.u64(listing.price)]);
 
-      tx.moveCall({
+      // Call purchase_dataset and get the PurchaseReceipt
+      const receipt = tx.moveCall({
         target: getMarketplaceTarget('purchase_dataset'),
         arguments: [
           tx.object(listing.id),
@@ -302,14 +328,26 @@ export function usePurchaseDataset() {
           tx.object('0x0000000000000000000000000000000000000000000000000000000000000006'),
         ],
       });
+      console.log('purchase_dataset moveCall created');
+
+      // Transfer PurchaseReceipt to buyer
+      tx.transferObjects([receipt], account.address);
+      console.log('transferObjects receipt to buyer added');
 
       signAndExecute(
         { transaction: tx },
         {
           onSuccess: (result) => {
+            console.log('=== PURCHASE SUCCESS ===');
+            console.log('Result:', result);
             const effects = result.effects as { created?: Array<{ reference: { objectId: string } }> } | undefined;
             const receiptId = effects?.created?.[0]?.reference?.objectId || '';
+            console.log('Receipt ID:', receiptId);
             onSuccess({ receiptId, digest: result.digest });
+          },
+          onError: (error) => {
+            console.error('=== PURCHASE ERROR ===');
+            console.error('Error:', error);
           },
         }
       );
