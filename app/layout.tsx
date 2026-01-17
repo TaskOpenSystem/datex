@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Anton, Inter } from "next/font/google";
-import { SuiProviders } from "@/components/SuiProviders";
+import { EnokiProviders } from "@/components/providers/EnokiProviders";
 import "./globals.css";
 import "@mysten/dapp-kit/dist/index.css";
 
@@ -57,7 +57,7 @@ export default function RootLayout({
         className={`${anton.variable} ${inter.variable} antialiased`}
         suppressHydrationWarning
       >
-        <SuiProviders>{children}</SuiProviders>
+        <EnokiProviders>{children}</EnokiProviders>
       </body>
     </html>
   );
