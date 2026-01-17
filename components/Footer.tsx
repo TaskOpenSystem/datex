@@ -50,7 +50,7 @@ export default function Footer() {
       <div className="bg-slush-green border-t-4 border-black py-10 px-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="font-display text-4xl uppercase tracking-tighter">
-            DataEx
+            DatEx
           </div>
           <div className="flex gap-4">
             <a
@@ -74,7 +74,7 @@ export default function Footer() {
           </div>
           <div className="text-xs font-bold uppercase text-center md:text-right">
             <p>Terms of Service • Privacy Policy</p>
-            <p className="mt-1">© 2024 Data Exchange Inc.</p>
+            <p className="mt-1">© 2026 Data Exchange Inc.</p>
           </div>
         </div>
       </div>

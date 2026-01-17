@@ -4,7 +4,7 @@ export default function FeaturesSection() {
       <div className="mb-12 text-center">
         <h2 className="font-display text-5xl md:text-6xl mb-4 uppercase">
           Your Shortcut to <br className="md:hidden" />
-          DeFi Data
+          Data
         </h2>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
@@ -19,7 +19,7 @@ export default function FeaturesSection() {
             </h3>
             <p className="text-black font-semibold text-lg max-w-xs mb-8">
               Discover vetted datasets to put your algorithms to work through
-              Sui DeFi protocols.
+              your next AI models.
             </p>
             <button className="bg-black text-white px-6 py-2 rounded-full font-bold text-sm uppercase group-hover:bg-white group-hover:text-black transition-colors">
               Start Now{" "}

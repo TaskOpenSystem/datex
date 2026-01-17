@@ -9,18 +9,18 @@ export default function Navbar() {
         <div className="flex items-center gap-2">
           <span className="material-icons text-primary text-3xl">token</span>
           <span className="font-display text-2xl tracking-wide uppercase">
-            DataEx
+            DatEx
           </span>
         </div>
         <div className="hidden md:flex gap-8 font-semibold text-sm uppercase tracking-wider">
           <a className="hover:text-primary transition-colors" href="#">
-            Marketplace
+            Home
           </a>
           <a className="hover:text-primary transition-colors" href="#">
-            Walrus
+            App
           </a>
           <a className="hover:text-primary transition-colors" href="#">
-            Staking
+            About
           </a>
         </div>
         <div className="flex gap-3">

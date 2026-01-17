@@ -15,7 +15,7 @@ export default function Home() {
       <MarqueeSection
         variant="reverse"
         text="JOIN THE REVOLUTION • UNLOCK VALUE •"
-        bgColor="bg-primary"
+        bgColor="bg-black"
       />
       <CardsSection />
       <Footer />
