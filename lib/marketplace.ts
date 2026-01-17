@@ -13,9 +13,13 @@ export function formatPrice(mistAmount: bigint): string {
   const sui = mistToSui(mistAmount);
   if (sui >= 1) {
     return `${sui.toFixed(2)} SUI`;
+  } else if (sui >= 0.01) {
+    return `${sui.toFixed(2)} SUI`;
+  } else if (sui >= 0.001) {
+    return `${sui.toFixed(3)} SUI`;
+  } else {
+    return `${sui.toFixed(4)} SUI`;
   }
-  const mist = Number(mistAmount);
-  return `${mist.toLocaleString()} MIST`;
 }
 
 export function parsePrice(suiString: string): bigint {
@@ -37,10 +41,10 @@ export function formatSize(bytes: bigint | number): string {
 export function parseSize(sizeString: string): number {
   const match = sizeString.match(/^([\d.]+)\s*(B|KB|MB|GB)?$/i);
   if (!match) throw new Error('Invalid size format');
-  
+
   const value = parseFloat(match[1]);
   const unit = (match[2] || 'B').toUpperCase();
-  
+
   switch (unit) {
     case 'B': return Math.floor(value);
     case 'KB': return Math.floor(value * 1024);
@@ -89,7 +93,7 @@ export function parseDatasetListing(
   objectData: Record<string, unknown>
 ): DatasetListing {
   const fields = objectData.fields as Record<string, unknown>;
-  
+
   return {
     id: (fields.id as Record<string, string>).id,
     seller: fields.seller as string,
@@ -130,14 +134,14 @@ export function validateBatchInputs<T>(
   validator: (input: T) => string | null
 ): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
-  
+
   for (let i = 0; i < inputs.length; i++) {
     const error = validator(inputs[i]);
     if (error) {
       errors.push(`Item ${i + 1}: ${error}`);
     }
   }
-  
+
   return {
     valid: errors.length === 0,
     errors,
