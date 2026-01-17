@@ -1,63 +1,149 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { MyListing } from '@/types/marketplace';
+import { useCallback, useState } from "react";
+import { useCurrentAccount } from "@mysten/dapp-kit";
+import { usePurchaseDataset } from "@/hooks/useMarketplace";
+import { DatasetListing } from "@/types/marketplace";
+import { formatPrice, formatSize, shortenAddress } from "@/lib/marketplace";
 
 interface ListingCardProps {
-  listing: MyListing;
+  listing: DatasetListing;
+  isOwner?: boolean;
+  onPurchased?: () => void;
 }
 
-export default function ListingCard({ listing }: ListingCardProps) {
+export function ListingCard({
+  listing,
+  isOwner,
+  onPurchased,
+}: ListingCardProps) {
+  const account = useCurrentAccount();
+  const { purchase, isPending } = usePurchaseDataset();
+  const [isPurchasing, setIsPurchasing] = useState(false);
+
+  const handlePurchase = useCallback(() => {
+    if (!account) {
+      alert("Please connect your wallet to purchase");
+      return;
+    }
+
+    setIsPurchasing(true);
+    purchase(listing, (result) => {
+      setIsPurchasing(false);
+      alert(`Purchase successful! Receipt ID: ${result.receiptId}`);
+      onPurchased?.();
+    });
+  }, [account, listing, purchase, onPurchased]);
+
   return (
-    <article className="flex flex-col rounded-xl border-2 border-ink bg-white p-4 shadow-hard-sm hover:shadow-hard hover:-translate-y-1 transition-all duration-200 group relative">
-      <div className="relative w-full aspect-video rounded-lg border-2 border-ink bg-gray-100 mb-4 overflow-hidden">
-        <div 
-          className="w-full h-full bg-cover bg-center group-hover:scale-110 transition-transform duration-500" 
-          style={{ backgroundImage: `url('${listing.imageUrl}')` }}
-        ></div>
-        <div className={`absolute top-2 left-2 rounded border border-ink px-2 py-0.5 text-[10px] font-bold ${
-          listing.status === 'ACTIVE' 
-            ? 'bg-accent-lime text-ink' 
-            : 'bg-gray-200 text-gray-600'
-        }`}>
-          {listing.status}
+    <div
+      className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-shadow border-2 border-black"
+      style={{ boxShadow: "6px_6px_0px_0px_rgba(0,0,0,1)" }}
+    >
+      <div className="p-6">
+        <div className="flex justify-between items-start mb-4">
+          <h3
+            className="text-xl font-bold truncate pr-4"
+            style={{ color: "#1A1A1A" }}
+          >
+            {listing.name}
+          </h3>
+          <span className="bg-[#3B82F6] text-white px-3 py-1 rounded-full text-sm font-bold">
+            {formatPrice(listing.price)}
+          </span>
         </div>
-      </div>
-      
-      <div className="flex-1 flex flex-col">
-        <h3 className="text-lg font-bold leading-tight mb-1 text-ink group-hover:text-primary transition-colors">
-          {listing.title}
-        </h3>
-        <p className="text-xs text-gray-500 mb-4 font-bold uppercase tracking-wide">
-          {listing.updatedAt}
+
+        <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+          {listing.description}
         </p>
-        
-        <div className="grid grid-cols-2 gap-2 mb-4 bg-gray-50 rounded-lg p-2 border border-gray-200">
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase">Price</p>
-            <p className="text-sm font-black text-ink">{listing.price} SUI</p>
+
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center gap-2 text-gray-500">
+            <span className="material-icons text-sm">storage</span>
+            <span style={{ color: "#1A1A1A" }}>
+              {formatSize(listing.totalSize)}
+            </span>
           </div>
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase">Earnings</p>
-            <p className="text-sm font-black text-green-600">{listing.earnings} SUI</p>
+          <div className="flex items-center gap-2 text-gray-500">
+            <span className="material-icons text-sm">visibility</span>
+            <span style={{ color: "#1A1A1A" }}>
+              Preview: {formatSize(listing.previewSize)}
+            </span>
           </div>
-          <div className="col-span-2 border-t border-gray-200 pt-1 mt-1">
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] font-bold text-gray-500">Sales</span>
-              <span className="text-[10px] font-bold text-ink">{listing.sales}</span>
-            </div>
+          <div className="flex items-center gap-2 text-gray-500">
+            <span className="material-icons text-sm">person</span>
+            <span className="font-mono" style={{ color: "#1A1A1A" }}>
+              {shortenAddress(listing.seller)}
+            </span>
           </div>
-        </div>
-        
-        <div className="mt-auto flex gap-2">
-          <button className="flex-1 h-9 rounded-lg border-2 border-ink bg-white text-ink text-sm font-bold hover:bg-gray-100 transition-colors">
-            {listing.status === 'PAUSED' ? 'Resume' : 'Edit'}
-          </button>
-          <button className="flex-1 h-9 rounded-lg bg-ink text-white text-sm font-bold flex items-center justify-center gap-1 hover:bg-primary hover:text-ink hover:border-2 hover:border-ink transition-all shadow-sm">
-            <span className="material-symbols-outlined text-sm">settings</span> Manage
-          </button>
         </div>
       </div>
-    </article>
+
+      <div className="px-6 py-4 bg-gray-100 border-t-2 border-black">
+        {isOwner ? (
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-500 font-bold uppercase">
+              Your listing
+            </span>
+            <span className="material-icons text-[#00D68F]">check_circle</span>
+          </div>
+        ) : (
+          <button
+            onClick={handlePurchase}
+            disabled={isPurchasing || isPending}
+            className="w-full bg-black text-white py-3 rounded-lg font-bold uppercase tracking-wide hover:scale-[1.02] transition-transform disabled:opacity-50 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+          >
+            {isPurchasing || isPending ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="material-icons animate-spin">sync</span>
+                Purchasing...
+              </span>
+            ) : (
+              "Purchase Dataset"
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface ListingsGridProps {
+  listings: DatasetListing[];
+  emptyMessage?: string;
+  showOwnerIndicator?: boolean;
+  onPurchased?: () => void;
+}
+
+export function ListingsGrid({
+  listings,
+  emptyMessage = "No listings found",
+  showOwnerIndicator = false,
+  onPurchased,
+}: ListingsGridProps) {
+  const account = useCurrentAccount();
+
+  if (listings.length === 0) {
+    return (
+      <div className="text-center py-16">
+        <div className="material-icons text-6xl text-gray-400 mb-4">
+          inventory_2
+        </div>
+        <p className="text-gray-500 text-lg">{emptyMessage}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {listings.map((listing) => (
+        <ListingCard
+          key={listing.id}
+          listing={listing}
+          isOwner={showOwnerIndicator && account?.address === listing.seller}
+          onPurchased={onPurchased}
+        />
+      ))}
+    </div>
   );
 }

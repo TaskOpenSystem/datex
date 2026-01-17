@@ -67,3 +67,59 @@ export interface Purchase {
   date: string;
   iconBg: string;
 }
+
+export interface DatasetListing {
+  id: string;
+  seller: string;
+  price: bigint;
+  blobId: string;
+  encryptedObject: string;
+  name: string;
+  description: string;
+  previewSize: bigint;
+  totalSize: bigint;
+}
+
+export interface PurchaseReceipt {
+  id: string;
+  datasetId: string;
+  buyer: string;
+  seller: string;
+  price: bigint;
+  timestamp: bigint;
+}
+
+export interface CreateListingInput {
+  name: string;
+  description: string;
+  priceSUI: number;
+  blobId: string;
+  encryptedObject: string;
+  previewSizeBytes: number;
+  totalSizeBytes: number;
+}
+
+export interface CreateListingResult {
+  listingId: string;
+  digest: string;
+}
+
+export interface PurchaseResult {
+  receiptId: string;
+  digest: string;
+}
+
+export interface MarketplaceEvents {
+  DatasetListed: {
+    dataset_id: string;
+    seller: string;
+    price: string;
+    name: string[];
+  };
+  DatasetPurchased: {
+    dataset_id: string;
+    buyer: string;
+    seller: string;
+    price: string;
+  };
+}
