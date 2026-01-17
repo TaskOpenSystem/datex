@@ -7,17 +7,9 @@ import { useAllListings, useAccountBalance } from '@/hooks/useMarketplace';
 import { formatSize, bytesToHex, formatPrice } from '@/lib/marketplace';
 import { getFullnodeUrl } from '@mysten/sui/client';
 import { SuiJsonRpcClient } from '@mysten/sui/jsonRpc';
-import gsap from 'gsap';
-import type { Transaction } from '@mysten/sui/transactions';
-import { TransactionStatus, useTransactionSteps } from '@/components/marketplace/TransactionStatus';
-
-// Type for Walrus write files flow
-interface WalrusWriteFlow {
-  encode: () => Promise<void>;
-  register: (opts: { epochs: number; owner: string; deletable: boolean }) => Transaction;
-  upload: (opts: { digest: string }) => Promise<void>;
-  certify: () => Transaction;
-}
+import { Transaction } from '@mysten/sui/transactions';
+import { marketplaceConfig, MIST_PER_SUI } from '@/config/marketplace';
+import { getMarketplaceTarget } from '@/lib/marketplace';
 
 const walrusModule = {
   walrus: null as null | typeof import('@mysten/walrus').walrus,
@@ -31,6 +23,25 @@ async function getWalrus() {
 }
 
 type Tab = 'uploads' | 'purchases';
+type UploadStep = 'form' | 'processing' | 'complete';
+type Step = 'encode' | 'register' | 'upload' | 'certify' | 'listing' | 'complete';
+
+interface TransactionLog {
+  step: string;
+  status: 'pending' | 'processing' | 'success' | 'error';
+  message: string;
+  details?: string;
+  timestamp: string;
+}
+
+const STEPS: { key: Step; label: string; icon: string }[] = [
+  { key: 'encode', label: 'Encode', icon: 'encryption' },
+  { key: 'register', label: 'Register', icon: 'how_to_reg' },
+  { key: 'upload', label: 'Upload', icon: 'cloud_upload' },
+  { key: 'certify', label: 'Certify', icon: 'verified' },
+  { key: 'listing', label: 'Listing', icon: 'add_business' },
+  { key: 'complete', label: 'Complete', icon: 'check_circle' },
+];
 
 export default function MyDataPage() {
   const account = useCurrentAccount();
@@ -40,14 +51,19 @@ export default function MyDataPage() {
 
   const [activeTab, setActiveTab] = useState<Tab>('uploads');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [uploadStep, setUploadStep] = useState<UploadStep>('form');
+  const [currentStep, setCurrentStep] = useState<Step>('encode');
   const [processingType, setProcessingType] = useState<'create' | 'download' | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [blobId, setBlobId] = useState('');
+  const [encryptedObject, setEncryptedObject] = useState('');
   const [totalSizeBytes, setTotalSizeBytes] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadError, setUploadError] = useState('');
-  const [showTxStatus, setShowTxStatus] = useState(false);
+  const [listingId, setListingId] = useState('');
+
+  const [logs, setLogs] = useState<TransactionLog[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -56,21 +72,22 @@ export default function MyDataPage() {
     previewSizeBytes: 1024 * 1024,
   });
 
-  const flowRef = useRef<WalrusWriteFlow | null>(null);
-  const iconRef = useRef<HTMLSpanElement>(null);
+  const flowRef = useRef<Awaited<ReturnType<typeof createFlow>> | null>(null);
 
-  // Transaction steps for status display
-  const txSteps = useTransactionSteps([
-    { id: 'encode', label: 'Encoding File', description: 'Preparing data for upload' },
-    { id: 'register', label: 'Register on Sui', description: 'Sign to register blob' },
-    { id: 'upload', label: 'Upload to Walrus', description: 'Uploading encrypted data' },
-    { id: 'listing', label: 'Create Listing', description: 'Sign to create marketplace listing' },
-  ]);
+  const addLog = (step: string, status: TransactionLog['status'], message: string, details?: string) => {
+    setLogs(prev => [...prev, {
+      step,
+      status,
+      message,
+      details,
+      timestamp: new Date().toLocaleTimeString(),
+    }]);
+  };
 
-  const createFlow = useCallback(async (data: Uint8Array, identifier: string): Promise<WalrusWriteFlow> => {
+  const createFlow = useCallback(async (data: Uint8Array, identifier: string) => {
     const walrus = await getWalrus();
     const { WalrusFile } = await import('@mysten/walrus');
-
+    
     const client = new SuiJsonRpcClient({
       url: getFullnodeUrl('testnet'),
       network: 'testnet',
@@ -81,7 +98,7 @@ export default function MyDataPage() {
           sendTip: { max: 1_000_000 },
         },
       })
-    ) as unknown as { walrus: { writeFilesFlow: (opts: { files: unknown[] }) => WalrusWriteFlow } };
+    );
 
     const walrusFile = WalrusFile.from({
       contents: data,
@@ -99,7 +116,11 @@ export default function MyDataPage() {
     setFile(selectedFile);
     setTotalSizeBytes(selectedFile.size);
     setFormData(prev => ({ ...prev, previewSizeBytes: Math.min(1024 * 1024, selectedFile.size) }));
+    setUploadStep('form');
     setBlobId('');
+    setEncryptedObject('');
+    setLogs([]);
+    setCurrentStep('encode');
     flowRef.current = null;
   };
 
@@ -112,193 +133,189 @@ export default function MyDataPage() {
 
     setIsProcessing(true);
     setUploadError('');
-    setShowTxStatus(true);
-    txSteps.reset();
 
     try {
-      // Validate form data first
       const price = parseFloat(formData.priceSUI);
       if (!formData.name || !formData.description || isNaN(price) || price <= 0) {
         setUploadError('Please fill in all required fields');
         setIsProcessing(false);
-        setShowTxStatus(false);
         return;
       }
 
-      // Step 1: Encode
-      txSteps.startStep('encode', 'Reading and encoding file data...');
-      
+      addLog('encode', 'processing', 'Encoding file...');
+
       const fileBytes = await file.arrayBuffer();
       const uint8Array = new Uint8Array(fileBytes);
 
-      // Create flow and encode
+      // Step 1: Create flow and encode
       const flow = await createFlow(uint8Array, file.name);
       flowRef.current = flow;
       await flow.encode();
+      addLog('encode', 'success', 'File encoded');
 
-      // Generate blob ID from content hash
-      const contentHash = Array.from(uint8Array).slice(0, 32).map((b: number) => b.toString(16).padStart(2, '0')).join('');
-      const generatedBlobId = '0x' + contentHash;
-      const generatedEncryptedObject = '0x' + bytesToHex(uint8Array).slice(0, 128);
+      // Generate encrypted object from file content (first 64 bytes as hex)
+      const encryptedObj = bytesToHex(uint8Array).slice(0, 128);
+      setEncryptedObject(encryptedObj);
 
-      setBlobId(generatedBlobId);
-      txSteps.completeStep('encode');
+      // Step 2: Register blob on-chain
+      setCurrentStep('register');
+      addLog('register', 'processing', 'Registering blob on Sui...');
 
-      // Step 2: Register
-      txSteps.startStep('register', 'Please sign the transaction in your wallet...');
-
-      // Build combined PTB: register + certify + create listing
-      const { marketplaceConfig, MIST_PER_SUI } = await import('@/config/marketplace');
-      const { getMarketplaceTarget } = await import('@/lib/marketplace');
-
-      // Get register transaction from flow
       const registerTx = flow.register({
         epochs: 3,
         owner: account.address,
         deletable: false,
       });
 
-      // Execute single PTB transaction
       signAndExecute(
         { transaction: registerTx },
         {
           onSuccess: async (result) => {
             try {
-              txSteps.completeStep('register');
-              
-              // Step 3: Upload
-              txSteps.startStep('upload', 'Uploading encrypted data to Walrus network...');
+              addLog('register', 'success', 'Blob registered', `TX: ${result.digest.slice(0, 16)}...`);
+
+              // Step 3: Upload to Walrus storage nodes
+              setCurrentStep('upload');
+              addLog('upload', 'processing', 'Uploading to Walrus...');
+
               await flow.upload({ digest: result.digest });
-              txSteps.completeStep('upload');
+              addLog('upload', 'success', 'Uploaded to Walrus storage nodes');
 
-              // Step 4: Create Listing
-              txSteps.startStep('listing', 'Please sign to create your listing...');
+              // Step 4: Certify blob
+              setCurrentStep('certify');
+              addLog('certify', 'processing', 'Certifying blob on Sui...');
 
-              // Build final PTB: certify + create listing in one transaction
               const certifyTx = flow.certify();
-              
-              // Merge certify with create listing using PTB
-              const priceInMIST = BigInt(Math.floor(price * Number(MIST_PER_SUI)));
-              const registryId = marketplaceConfig.registryId;
 
-              // Add create listing to the certify transaction
-              const listing = certifyTx.moveCall({
-                target: getMarketplaceTarget('list_dataset'),
-                arguments: [
-                  certifyTx.object(registryId),
-                  certifyTx.pure.string(generatedBlobId),
-                  certifyTx.pure.string(generatedEncryptedObject),
-                  certifyTx.pure.string(formData.name),
-                  certifyTx.pure.string(formData.description),
-                  certifyTx.pure.u64(priceInMIST),
-                  certifyTx.pure.u64(formData.previewSizeBytes),
-                  certifyTx.pure.u64(totalSizeBytes),
-                ],
-              });
-
-              // Transfer listing to owner
-              certifyTx.transferObjects([listing], account.address);
-
-              // Execute combined certify + create listing transaction
               signAndExecute(
                 { transaction: certifyTx },
                 {
-                  onSuccess: () => {
-                    txSteps.completeStep('listing');
-                    
-                    // Delay to show completion
-                    setTimeout(() => {
-                      setShowTxStatus(false);
-                      setIsCreateModalOpen(false);
-                      setProcessingType('create');
-                      resetFlow();
-                      refetch();
-                      setIsProcessing(false);
-                    }, 1500);
+                  onSuccess: async (certifyResult) => {
+                    addLog('certify', 'success', 'Blob certified', `TX: ${certifyResult.digest.slice(0, 16)}...`);
+
+                    // Step 5: Get blobId from listFiles (only available after certify)
+                    let walrusBlobId = '';
+                    try {
+                      const files = await flow.listFiles();
+                      console.log('[Walrus] Files:', files);
+                      walrusBlobId = files[0]?.blobId || files[0]?.id || '';
+                      if (walrusBlobId) {
+                        setBlobId(walrusBlobId);
+                        addLog('complete', 'success', 'Blob ID obtained', `ID: ${walrusBlobId.slice(0, 20)}...`);
+                      }
+                    } catch (listError) {
+                      console.error('[Walrus] listFiles error:', listError);
+                    }
+
+                    // Step 6: Create listing
+                    await handleCreateListing(price, walrusBlobId, encryptedObj);
                   },
                   onError: (err) => {
-                    txSteps.failStep('listing', err.message || 'Failed to create listing');
-                    setUploadError(err.message || 'Failed to create listing');
+                    addLog('certify', 'error', err.message || 'Certification failed');
+                    setUploadError(err.message || 'Certification failed');
                     setIsProcessing(false);
                   },
                 }
               );
             } catch (err) {
               const errorMsg = err instanceof Error ? err.message : 'Upload failed';
-              txSteps.failStep('upload', errorMsg);
+              addLog('upload', 'error', errorMsg);
               setUploadError(errorMsg);
               setIsProcessing(false);
             }
           },
           onError: (err) => {
-            txSteps.failStep('register', err.message || 'Failed to register blob');
-            setUploadError(err.message || 'Failed to register blob');
+            addLog('register', 'error', err.message || 'Registration failed');
+            setUploadError(err.message || 'Registration failed');
             setIsProcessing(false);
           },
         }
       );
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to prepare upload';
-      txSteps.failStep('encode', errorMsg);
+      addLog('encode', 'error', errorMsg);
       setUploadError(errorMsg);
       setIsProcessing(false);
     }
   };
 
-  const resetFlow = () => {
+  const handleCreateListing = async (price: number, walrusBlobId: string, encryptedObj: string) => {
+    if (!account) return;
+
+    try {
+      setCurrentStep('listing');
+      addLog('listing', 'processing', 'Creating listing on marketplace...');
+
+      const priceInMIST = BigInt(Math.floor(price * Number(MIST_PER_SUI)));
+      const registryId = marketplaceConfig.registryId;
+
+      const tx = new Transaction();
+
+      const listing = tx.moveCall({
+        target: getMarketplaceTarget('list_dataset'),
+        arguments: [
+          tx.object(registryId),
+          tx.pure.string(walrusBlobId || blobId),
+          tx.pure.string(encryptedObj),
+          tx.pure.string(formData.name),
+          tx.pure.string(formData.description),
+          tx.pure.u64(priceInMIST),
+          tx.pure.u64(formData.previewSizeBytes),
+          tx.pure.u64(totalSizeBytes),
+        ],
+      });
+
+      tx.transferObjects([listing], account.address);
+
+      signAndExecute(
+        { transaction: tx },
+        {
+          onSuccess: (result) => {
+            const effects = result.effects as { created?: Array<{ reference: { objectId: string } }> } | undefined;
+            const newListingId = effects?.created?.[0]?.reference?.objectId || result.digest;
+            
+            addLog('listing', 'success', 'Listing created!', `ID: ${newListingId.slice(0, 16)}...`);
+            setListingId(newListingId);
+
+            setCurrentStep('complete');
+            setUploadStep('complete');
+            setProcessingType('create');
+            setIsProcessing(false);
+          },
+          onError: (err) => {
+            addLog('listing', 'error', err.message || 'Failed to create listing');
+            setUploadError(err.message || 'Failed to create listing');
+            setIsProcessing(false);
+          },
+        }
+      );
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to create listing';
+      addLog('listing', 'error', errorMsg);
+      setUploadError(errorMsg);
+      setIsProcessing(false);
+    }
+  };
+
+  const closeModal = () => {
+    setIsCreateModalOpen(false);
     setFile(null);
     setBlobId('');
+    setEncryptedObject('');
     setTotalSizeBytes(0);
+    setUploadStep('form');
     setFormData({
       name: '',
       description: '',
       priceSUI: '',
       previewSizeBytes: 1024 * 1024,
     });
+    setLogs([]);
+    setListingId('');
     flowRef.current = null;
   };
 
-  const closeModal = () => {
-    setIsCreateModalOpen(false);
-    resetFlow();
-  };
-
-  useEffect(() => {
-    if (processingType === 'create') {
-      const tl = gsap.timeline({
-        onComplete: () => {
-          setTimeout(() => setProcessingType(null), 800);
-        }
-      });
-
-      tl.to('#anim-overlay', { opacity: 1, duration: 0.2 })
-        .to('#anim-text', {
-          duration: 0.5,
-          onStart: () => {
-            document.getElementById('anim-text')!.innerText = 'ENCRYPTING METADATA';
-            document.getElementById('anim-subtext')!.innerText = 'Preparing asset for encryption';
-          }
-        })
-        .to('#anim-progress', { width: '60%', duration: 1.2, ease: 'power2.inOut' })
-        .to('#anim-seal', { scale: 1, opacity: 1, rotation: 0, duration: 0.4, ease: 'elastic.out(1, 0.5)' })
-        .to('#anim-overlay', { backgroundColor: '#101618', duration: 0.1, yoyo: true, repeat: 1 }, '-=0.2')
-        .to('#anim-icon', { scale: 1, opacity: 1, duration: 0.3, ease: 'back.out(1.7)' })
-        .add(() => {
-          document.getElementById('anim-text')!.innerText = 'VERIFYING ZK-PROOFS';
-          document.getElementById('anim-subtext')!.innerText = 'Generating SNARKs on Sui Network...';
-        })
-        .to('#anim-progress', { width: '90%', duration: 1 })
-        .to('#anim-seal', { borderColor: '#ccff00', boxShadow: '0 0 30px #ccff00', duration: 0.3 })
-        .to('#anim-icon', { color: '#ccff00', duration: 0.3 }, '<')
-        .add(() => {
-          document.getElementById('anim-text')!.innerText = 'ASSET SECURED';
-          document.getElementById('anim-text')!.classList.add('text-accent-lime');
-          document.getElementById('anim-subtext')!.innerText = 'Listing created successfully.';
-        })
-        .to('#anim-progress', { width: '100%', backgroundColor: '#ccff00', duration: 0.3 })
-        .to('#anim-seal', { scale: 1.1, duration: 0.2, yoyo: true, repeat: 1 });
-    }
-  }, [processingType]);
+  const totalRevenue = listings ? listings.reduce((acc, l) => acc + Number(l.price), 0) / 1000000000 : 0;
 
   return (
     <>
@@ -312,7 +329,7 @@ export default function MyDataPage() {
             </div>
             <h1 className="text-4xl font-black text-ink uppercase tracking-tight">My Data Dashboard</h1>
           </div>
-
+          
           <div className="relative group">
             <div className="absolute -inset-1 rounded-xl bg-ink opacity-100 translate-x-1 translate-y-1 blur-0"></div>
             <div className="relative flex items-center gap-6 rounded-xl border-2 border-ink bg-white p-4 pr-8 shadow-sm">
@@ -322,9 +339,7 @@ export default function MyDataPage() {
               <div>
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Total Revenue</p>
                 <div className="flex items-baseline gap-2">
-                  <h2 className="text-3xl font-black text-ink">
-                    {listings ? listings.reduce((acc, l) => acc + Number(l.price), 0) / 1000000000 : 0}
-                  </h2>
+                  <h2 className="text-3xl font-black text-ink">{totalRevenue.toFixed(2)}</h2>
                   <span className="text-sm font-bold text-gray-400">SUI</span>
                 </div>
                 <span className="inline-flex items-center gap-1 text-xs font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded border border-green-200 mt-1">
@@ -338,21 +353,23 @@ export default function MyDataPage() {
 
       <div className="px-8 mt-6">
         <div className="flex gap-4 border-b-2 border-gray-200">
-          <button
+          <button 
             onClick={() => setActiveTab('uploads')}
-            className={`px-6 py-3 rounded-t-xl border-2 font-bold text-lg transition-colors relative top-[2px] z-10 ${activeTab === 'uploads'
-              ? 'border-ink border-b-0 bg-white text-ink shadow-[0_-2px_0_0_rgba(0,0,0,0.05)]'
-              : 'border-transparent hover:bg-gray-100 text-gray-500'
-              }`}
+            className={`px-6 py-3 rounded-t-xl border-2 font-bold text-lg transition-colors relative top-[2px] z-10 ${
+              activeTab === 'uploads' 
+                ? 'border-ink border-b-0 bg-white text-ink shadow-[0_-2px_0_0_rgba(0,0,0,0.05)]' 
+                : 'border-transparent hover:bg-gray-100 text-gray-500'
+            }`}
           >
             My Uploads
           </button>
-          <button
+          <button 
             onClick={() => setActiveTab('purchases')}
-            className={`px-6 py-3 rounded-t-xl border-2 font-bold text-lg transition-colors relative top-[2px] z-10 ${activeTab === 'purchases'
-              ? 'border-ink border-b-0 bg-white text-ink shadow-[0_-2px_0_0_rgba(0,0,0,0.05)]'
-              : 'border-transparent hover:bg-gray-100 text-gray-500'
-              }`}
+            className={`px-6 py-3 rounded-t-xl border-2 font-bold text-lg transition-colors relative top-[2px] z-10 ${
+              activeTab === 'purchases' 
+                ? 'border-ink border-b-0 bg-white text-ink shadow-[0_-2px_0_0_rgba(0,0,0,0.05)]' 
+                : 'border-transparent hover:bg-gray-100 text-gray-500'
+            }`}
           >
             My Purchases
           </button>
@@ -370,9 +387,9 @@ export default function MyDataPage() {
                 View Analytics <span className="material-symbols-outlined text-sm">arrow_outward</span>
               </button>
             </div>
-
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              <article
+              <article 
                 onClick={() => setIsCreateModalOpen(true)}
                 className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-ink bg-gray-50 p-6 min-h-[340px] hover:bg-blue-50 hover:border-primary transition-all duration-200 cursor-pointer group"
               >
@@ -425,7 +442,7 @@ export default function MyDataPage() {
                 Recent Purchases <span className="text-gray-400 text-base font-normal ml-1">(0 items)</span>
               </h2>
             </div>
-
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               <article className="flex flex-col rounded-xl border-2 border-ink bg-white p-4 shadow-hard-sm opacity-60">
                 <div className="flex items-start justify-between mb-4">
@@ -436,7 +453,7 @@ export default function MyDataPage() {
                 </div>
                 <h3 className="text-lg font-bold text-gray-400 mb-1">No purchases yet</h3>
                 <p className="text-sm text-gray-400 mb-4">Start exploring the marketplace to find datasets.</p>
-                <Link
+                <Link 
                   href="/marketplace"
                   className="mt-auto w-full h-10 rounded-lg border-2 border-ink bg-gray-100 text-gray-500 font-bold transition-colors flex items-center justify-center gap-2"
                 >
@@ -448,249 +465,384 @@ export default function MyDataPage() {
         )}
       </div>
 
+      <footer className="mt-auto border-t-2 border-ink pt-8 flex flex-col items-center gap-4 text-center opacity-60 pb-8 bg-[#f6f7f9]">
+        <p className="text-sm font-bold">Powered by Sui Network</p>
+        <div className="flex gap-4">
+          <span className="material-symbols-outlined">dataset</span>
+          <span className="material-symbols-outlined">security</span>
+          <span className="material-symbols-outlined">hub</span>
+        </div>
+      </footer>
+
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-2xl bg-white rounded-2xl border-2 border-ink shadow-hard-lg p-6 relative max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={closeModal}
-              className="absolute top-4 right-4 h-8 w-8 flex items-center justify-center rounded-lg border-2 border-transparent hover:bg-gray-100 transition-colors"
-            >
-              <span className="material-symbols-outlined text-ink">close</span>
-            </button>
-
-            <h2 className="text-2xl font-black text-ink uppercase mb-6">Create New Listing</h2>
+          <div className="w-full max-w-5xl bg-white rounded-2xl border-2 border-ink shadow-hard-lg max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b-2 border-ink">
+              <h2 className="text-xl font-black text-ink uppercase">Create New Listing</h2>
+              <button
+                onClick={closeModal}
+                className="h-8 w-8 flex items-center justify-center rounded-lg border-2 border-transparent hover:bg-gray-100 transition-colors"
+              >
+                <span className="material-symbols-outlined text-ink">close</span>
+              </button>
+            </div>
 
             {!account ? (
-              <div className="text-center py-12">
-                <div className="material-symbols-outlined text-6xl text-gray-400 mb-4">account_balance_wallet</div>
-                <h3 className="text-xl font-bold mb-2 text-ink">Connect Your Wallet</h3>
-                <p className="text-gray-600">Please connect your wallet to create a listing.</p>
+              <div className="flex-1 flex items-center justify-center p-12">
+                <div className="text-center">
+                  <div className="material-symbols-outlined text-6xl text-gray-400 mb-4">account_balance_wallet</div>
+                  <h3 className="text-xl font-bold mb-2 text-ink">Connect Your Wallet</h3>
+                  <p className="text-gray-600">Please connect your wallet to create a listing.</p>
+                </div>
               </div>
             ) : (
-              <div className="space-y-6">
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Dataset Name</label>
-                      <input
-                        type="text"
-                        value={formData.name}
-                        onChange={(e) => handleInputChange('name', e.target.value)}
-                        placeholder="Enter dataset name"
-                        maxLength={100}
-                            className="w-full rounded-lg border-2 border-gray-200 focus:border-primary focus:ring-0 font-bold text-ink placeholder:text-gray-300 transition-colors p-3"
-                          />
-                          <p className="text-xs text-gray-500 mt-1">{formData.name.length}/100 characters</p>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Description</label>
-                          <textarea
-                            value={formData.description}
-                            onChange={(e) => handleInputChange('description', e.target.value)}
-                            placeholder="Describe your dataset..."
-                            rows={3}
-                            maxLength={1000}
-                            className="w-full rounded-lg border-2 border-gray-200 focus:border-primary focus:ring-0 font-medium text-ink placeholder:text-gray-300 transition-colors resize-none p-3"
-                          />
-                          <p className="text-xs text-gray-500 mt-1">{formData.description.length}/1000 characters</p>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Price (SUI)</label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              value={formData.priceSUI}
-                              onChange={(e) => handleInputChange('priceSUI', e.target.value)}
-                              placeholder="0.00"
-                              step="0.01"
-                              min="0"
-                              className="w-full rounded-lg border-2 border-gray-200 focus:border-primary focus:ring-0 font-bold text-ink placeholder:text-gray-300 transition-colors p-3 pr-12"
-                            />
-                            <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-gray-500">SUI</span>
-                          </div>
-                          {balance && (
-                            <p className="text-xs text-gray-500 mt-1">Balance: {balance.sui.toFixed(4)} SUI</p>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Preview Size</label>
-                          <input
-                            type="range"
-                            value={formData.previewSizeBytes}
-                            onChange={(e) => handleInputChange('previewSizeBytes', Number(e.target.value))}
-                            min={0}
-                            max={totalSizeBytes || 10 * 1024 * 1024}
-                            step={1024}
-                            className="w-full"
-                          />
-                          <div className="flex justify-between text-sm text-gray-500">
-                            <span>0 B</span>
-                            <span className="text-primary font-bold">{formatSize(formData.previewSizeBytes)}</span>
-                            <span>{formatSize(totalSizeBytes)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Dataset File</label>
-                          {!file ? (
-                            <label className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-primary hover:bg-blue-50 transition-all block">
-                              <input
-                                type="file"
-                                onChange={handleFileSelect}
-                                className="hidden"
-                                accept="*/*"
-                              />
-                              <div className="material-symbols-outlined text-5xl text-gray-400 mb-2">cloud_upload</div>
-                              <p className="font-bold text-ink">Choose File</p>
-                              <p className="text-sm text-gray-500 mt-1">or drag and drop</p>
-                            </label>
-                          ) : (
-                            <div className="bg-gray-100 rounded-xl p-4 border-2 border-ink">
-                              <div className="flex items-center gap-3">
-                                <div className="bg-primary w-10 h-10 rounded-lg flex items-center justify-center">
-                                  <span className="material-icons text-white">description</span>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-bold truncate text-ink">{file.name}</p>
-                                  <p className="text-sm text-gray-500 font-mono">{formatSize(file.size)}</p>
-                                </div>
-                                <button
-                                  onClick={() => setFile(null)}
-                                  className="p-2 hover:bg-gray-200 rounded-lg"
-                                >
-                                  <span className="material-icons text-gray-500">close</span>
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {file && (
-                          <div className="bg-blue-50 border-2 border-ink rounded-xl p-4">
-                            <h4 className="font-bold uppercase text-sm mb-2 flex items-center gap-2 text-ink">
-                              <span className="material-symbols-outlined text-sm">info</span>
-                              File Information
-                            </h4>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                              <div>
-                                <p className="text-gray-500">Size</p>
-                                <p className="font-mono font-bold text-ink">{formatSize(file.size)}</p>
-                              </div>
-                              <div>
-                                <p className="text-gray-500">Type</p>
-                                <p className="font-mono font-bold text-ink">{file.type || 'Unknown'}</p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {uploadError && (
-                          <div className="bg-red-100 border-2 border-red-400 text-red-700 px-4 py-3 rounded-xl">
-                            <p className="font-bold flex items-center gap-2">
-                              <span className="material-symbols-outlined">error</span>
-                              Error
-                            </p>
-                            <p className="text-sm">{uploadError}</p>
-                          </div>
-                        )}
-
-                        <button
-                          onClick={handleStartUpload}
-                          disabled={!file || !formData.name || !formData.description || !formData.priceSUI || isProcessing || isSigning}
-                          className="w-full h-12 rounded-xl border-2 border-ink bg-primary text-white font-bold shadow-hard-sm hover:translate-y-0.5 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                        >
-                          {isProcessing || isSigning ? (
-                            <>
-                              <span className="material-symbols-outlined animate-spin">sync</span>
-                              Creating Listing...
-                            </>
-                          ) : (
-                            <>
-                              <span className="material-symbols-outlined">rocket_launch</span>
-                              Create Listing
-                            </>
-                          )}
-                        </button>
+              <div className="flex-1 flex overflow-hidden">
+                {/* Left Panel - Main Content */}
+                <div className="flex-1 p-6 overflow-y-auto">
+                  {/* Step Progress */}
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between">
+                      {STEPS.map((step, index) => {
+                        const stepIndex = STEPS.findIndex(s => s.key === currentStep);
+                        const isCompleted = index < stepIndex;
+                        const isCurrent = step.key === currentStep;
+                        const isPending = index > stepIndex;
                         
-                        <p className="text-xs text-gray-500 text-center">
-                          One transaction to upload, register, and create your listing
-                        </p>
-                      </div>
+                        return (
+                          <React.Fragment key={step.key}>
+                            <div className="flex flex-col items-center">
+                              <div className={`
+                                w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all
+                                ${isCompleted ? 'bg-green-500 border-green-500' : ''}
+                                ${isCurrent ? 'bg-blue-500 border-blue-500 animate-pulse' : ''}
+                                ${isPending ? 'bg-gray-100 border-gray-300' : ''}
+                              `}>
+                                {isCompleted ? (
+                                  <span className="material-symbols-outlined text-white">check</span>
+                                ) : isCurrent ? (
+                                  <span className="material-symbols-outlined text-white animate-spin">sync</span>
+                                ) : (
+                                  <span className="material-symbols-outlined text-gray-400">{step.icon}</span>
+                                )}
+                              </div>
+                              <span className={`text-xs mt-2 font-bold ${isCurrent ? 'text-blue-600' : isCompleted ? 'text-green-600' : 'text-gray-400'}`}>
+                                {step.label}
+                              </span>
+                            </div>
+                            {index < STEPS.length - 1 && (
+                              <div className={`flex-1 h-1 mx-2 rounded ${
+                                isCompleted ? 'bg-green-500' : 'bg-gray-200'
+                              }`} />
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
                     </div>
                   </div>
+
+                  {/* Form Content */}
+                  {uploadStep === 'form' && (
+                    <div className="space-y-6">
+                      <div className="grid md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Dataset Name</label>
+                            <input
+                              type="text"
+                              value={formData.name}
+                              onChange={(e) => handleInputChange('name', e.target.value)}
+                              placeholder="Enter dataset name"
+                              maxLength={100}
+                              className="w-full rounded-lg border-2 border-gray-200 focus:border-primary focus:ring-0 font-bold text-ink placeholder:text-gray-300 transition-colors p-3"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">{formData.name.length}/100 characters</p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Description</label>
+                            <textarea
+                              value={formData.description}
+                              onChange={(e) => handleInputChange('description', e.target.value)}
+                              placeholder="Describe your dataset..."
+                              rows={3}
+                              maxLength={1000}
+                              className="w-full rounded-lg border-2 border-gray-200 focus:border-primary focus:ring-0 font-medium text-ink placeholder:text-gray-300 transition-colors resize-none p-3"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">{formData.description.length}/1000 characters</p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Price (SUI)</label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                value={formData.priceSUI}
+                                onChange={(e) => handleInputChange('priceSUI', e.target.value)}
+                                placeholder="0.00"
+                                step="0.01"
+                                min="0"
+                                className="w-full rounded-lg border-2 border-gray-200 focus:border-primary focus:ring-0 font-bold text-ink placeholder:text-gray-300 transition-colors p-3 pr-12"
+                              />
+                              <span className="absolute right-4 top-1/2 -translate-y-1/2 font-bold text-gray-500">SUI</span>
+                            </div>
+                            {balance && (
+                              <p className="text-xs text-gray-500 mt-1">Balance: {balance.sui.toFixed(4)} SUI</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Preview Size</label>
+                            <input
+                              type="range"
+                              value={formData.previewSizeBytes}
+                              onChange={(e) => handleInputChange('previewSizeBytes', Number(e.target.value))}
+                              min={0}
+                              max={totalSizeBytes || 10 * 1024 * 1024}
+                              step={1024}
+                              className="w-full"
+                            />
+                            <div className="flex justify-between text-sm text-gray-500">
+                              <span>0 B</span>
+                              <span className="text-primary font-bold">{formatSize(formData.previewSizeBytes)}</span>
+                              <span>{formatSize(totalSizeBytes)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Dataset File</label>
+                            {!file ? (
+                              <label className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-primary hover:bg-blue-50 transition-all block">
+                                <input
+                                  type="file"
+                                  onChange={handleFileSelect}
+                                  className="hidden"
+                                  accept="*/*"
+                                />
+                                <div className="material-symbols-outlined text-5xl text-gray-400 mb-2">cloud_upload</div>
+                                <p className="font-bold text-ink">Choose File</p>
+                                <p className="text-sm text-gray-500 mt-1">or drag and drop</p>
+                              </label>
+                            ) : (
+                              <div className="bg-gray-100 rounded-xl p-4 border-2 border-ink">
+                                <div className="flex items-center gap-3">
+                                  <div className="bg-primary w-10 h-10 rounded-lg flex items-center justify-center">
+                                    <span className="material-icons text-white">description</span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-bold truncate text-ink">{file.name}</p>
+                                    <p className="text-sm text-gray-500 font-mono">{formatSize(file.size)}</p>
+                                  </div>
+                                  <button
+                                    onClick={() => setFile(null)}
+                                    className="p-2 hover:bg-gray-200 rounded-lg"
+                                  >
+                                    <span className="material-icons text-gray-500">close</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {file && (
+                            <div className="bg-blue-50 border-2 border-ink rounded-xl p-4">
+                              <h4 className="font-bold uppercase text-sm mb-2 flex items-center gap-2 text-ink">
+                                <span className="material-symbols-outlined text-sm">info</span>
+                                File Information
+                              </h4>
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                <div>
+                                  <p className="text-gray-500">Size</p>
+                                  <p className="font-mono font-bold text-ink">{formatSize(file.size)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500">Type</p>
+                                  <p className="font-mono font-bold text-ink">{file.type || 'Unknown'}</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          <button
+                            onClick={handleStartUpload}
+                            disabled={!file || !formData.name || !formData.description || !formData.priceSUI || isProcessing}
+                            className="w-full h-12 rounded-xl border-2 border-ink bg-primary text-white font-bold shadow-hard-sm hover:translate-y-0.5 hover:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          >
+                            {isProcessing ? (
+                              <>
+                                <span className="material-symbols-outlined animate-spin">sync</span>
+                                Processing...
+                              </>
+                            ) : (
+                              'Start Upload'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {(uploadStep === 'processing' || uploadStep === 'complete') && (
+                    <div className="space-y-6">
+                      <div className="bg-gray-50 border-2 border-ink rounded-xl p-6">
+                        <h3 className="font-bold uppercase text-lg mb-4 text-ink">Dataset Summary</h3>
+                        
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <p className="text-sm text-gray-500">Name</p>
+                            <p className="font-bold text-ink">{formData.name || '-'}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500">Price</p>
+                            <p className="font-bold text-primary">{formData.priceSUI || '0'} SUI</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500">File Size</p>
+                            <p className="font-mono font-bold text-ink">{formatSize(totalSizeBytes)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-500">Preview Size</p>
+                            <p className="font-mono font-bold text-ink">{formatSize(formData.previewSizeBytes)}</p>
+                          </div>
+                        </div>
+
+                        <div className="bg-white rounded-lg p-4 border-2 border-ink">
+                          <p className="text-sm text-gray-500 mb-1">Description</p>
+                          <p className="font-medium text-ink">{formData.description || '-'}</p>
+                        </div>
+                      </div>
+
+                      {uploadError && (
+                        <div className="bg-red-100 border-2 border-red-400 text-red-700 px-4 py-3 rounded-xl">
+                          <p className="font-bold flex items-center gap-2">
+                            <span className="material-symbols-outlined">error</span>
+                            Error
+                          </p>
+                          <p className="text-sm">{uploadError}</p>
+                        </div>
+                      )}
+
+                      <div className="flex gap-3">
+                        <button
+                          onClick={closeModal}
+                          className="flex-1 h-12 rounded-xl border-2 border-ink bg-white text-ink font-bold hover:bg-gray-100 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Panel - Transaction Logs */}
+                <div className="w-80 border-l-2 border-ink bg-gray-50 p-4 overflow-y-auto">
+                  <h3 className="font-bold uppercase text-sm mb-4 text-ink flex items-center gap-2">
+                    <span className="material-symbols-outlined">terminal</span>
+                    Transaction Log
+                  </h3>
+
+                  {logs.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-8">
+                      No transactions yet.<br />
+                      Start upload to see logs.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {logs.map((log, index) => (
+                        <div 
+                          key={index}
+                          className={`
+                            rounded-lg p-3 border-2 text-sm
+                            ${log.status === 'success' ? 'bg-green-50 border-green-300' : ''}
+                            ${log.status === 'error' ? 'bg-red-50 border-red-300' : ''}
+                            ${log.status === 'processing' ? 'bg-blue-50 border-blue-300 animate-pulse' : ''}
+                            ${log.status === 'pending' ? 'bg-gray-100 border-gray-300' : ''}
+                          `}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="material-symbols-outlined text-sm">
+                              {log.status === 'success' ? 'check_circle' : log.status === 'error' ? 'error' : log.status === 'processing' ? 'sync' : 'schedule'}
+                            </span>
+                            <span className="font-bold text-ink">{log.step}</span>
+                          </div>
+                          <p className="text-gray-600">{log.message}</p>
+                          {log.details && (
+                            <p className="text-xs text-gray-400 mt-1 font-mono break-all">{log.details}</p>
+                          )}
+                          <p className="text-xs text-gray-400 mt-1">{log.timestamp}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {blobId && (
+                    <div className="mt-4 p-3 bg-blue-50 border-2 border-blue-300 rounded-lg">
+                      <p className="text-xs font-bold text-blue-600 uppercase mb-1">Blob ID</p>
+                      <p className="font-mono text-xs text-ink break-all">{blobId}</p>
+                    </div>
+                  )}
+
+                  {listingId && (
+                    <div className="mt-4 p-3 bg-green-50 border-2 border-green-300 rounded-lg">
+                      <p className="text-xs font-bold text-green-600 uppercase mb-1">Listing ID</p>
+                      <p className="font-mono text-xs text-ink break-all">{listingId}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>
       )}
 
-      {processingType && (
-        <div
-          id="anim-overlay"
-          className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-ink/95 backdrop-blur-md transition-colors opacity-0"
-        >
-          <div
-            id="anim-seal"
-            className="relative flex h-64 w-64 items-center justify-center rounded-full border-[6px] border-white bg-ink shadow-2xl"
-          >
-            <div className="absolute inset-2 rounded-full border-2 border-dashed border-white/30 animate-spin" style={{ animationDuration: '10s' }}></div>
-            <div className="absolute inset-4 rounded-full border border-white/10 animate-spin" style={{ animationDuration: '8s', animationDirection: 'reverse' }}></div>
-            
-            {/* Icon */}
-            <span ref={iconRef} className="material-symbols-outlined !text-[120px] text-white relative z-10 drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]">lock</span>
-            
-            <svg className="absolute inset-0 h-full w-full animate-spin" style={{ animationDuration: '20s', animationDirection: 'reverse' }} viewBox="0 0 100 100" width="100" height="100">
-              <path id="circlePathCommon" d="M 50, 50 m -35, 0 a 35,35 0 1,1 70,0 a 35,35 0 1,1 -70,0" fill="transparent" />
-              <text fill="white" fontSize="8" fontWeight="bold" letterSpacing="2">
-                <textPath href="#circlePathCommon" startOffset="0%">
-                  SUI DATA MARKETPLACE • SECURE ENCRYPTION •
-                </textPath>
-              </text>
-            </svg>
-          </div>
-
-          <h2
-            id="anim-text"
-            className="mt-12 text-3xl font-black text-white uppercase tracking-[0.2em] text-center px-4"
-          >
-            INITIALIZING
-          </h2>
-          <p id="anim-subtext" className="mt-2 text-sm font-bold text-gray-500 uppercase tracking-widest">
-            Accessing secure storage
-          </p>
-
-          <div className="mt-8 h-4 w-64 rounded-full border-2 border-white bg-gray-800 p-1">
-            <div
-              id="anim-progress"
-              className="h-full w-0 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)]"
-            ></div>
-          </div >
-
-          <div className="absolute bottom-10 left-0 right-0 flex justify-center gap-8 opacity-30">
-            <span className="font-mono text-xs text-white">BLOCK: #{listings?.[0]?.id?.slice(0, 8) || '000000'}</span>
-            <span className="font-mono text-xs text-white">HASH: 0x{blobId?.slice(0, 4) || '0000'}...{blobId?.slice(-4) || '0000'}</span>
-            <span className="font-mono text-xs text-white">NODE: SUI-TESTNET-01</span>
+      {processingType === 'create' && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border-2 border-ink shadow-hard-lg p-8 max-w-md w-full mx-4">
+            <div className="flex flex-col items-center text-center">
+              <div className="relative mb-6">
+                <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
+                  <span className="material-symbols-outlined text-6xl text-green-500">check_circle</span>
+                </div>
+                <div className="absolute -inset-2 rounded-full border-4 border-green-400 animate-ping opacity-20"></div>
+              </div>
+              <h2 className="text-2xl font-black text-ink uppercase tracking-wide mb-2">
+                Listing Created!
+              </h2>
+              <p className="text-gray-600 mb-4">Your dataset is now on the marketplace</p>
+              
+              {listingId && (
+                <div className="w-full bg-gray-50 rounded-lg p-3 mb-6 border border-gray-200">
+                  <p className="text-xs font-bold text-gray-500 uppercase mb-1">Listing ID</p>
+                  <p className="font-mono text-xs text-ink break-all">{listingId}</p>
+                </div>
+              )}
+              
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => {
+                    setProcessingType(null);
+                    closeModal();
+                    refetch();
+                  }}
+                  className="flex-1 h-12 rounded-xl border-2 border-ink bg-primary text-white font-bold hover:translate-y-0.5 transition-all"
+                >
+                  View My Listings
+                </button>
+                <button
+                  onClick={() => {
+                    setProcessingType(null);
+                    closeModal();
+                  }}
+                  className="flex-1 h-12 rounded-xl border-2 border-gray-300 bg-white text-gray-700 font-bold hover:bg-gray-50 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
-
-      {/* Transaction Status Modal */}
-      <TransactionStatus
-        steps={txSteps.steps}
-        currentStep={txSteps.currentStep}
-        isVisible={showTxStatus}
-        error={txSteps.error}
-        onClose={() => {
-          if (!txSteps.isActive) {
-            setShowTxStatus(false);
-            txSteps.reset();
-          }
-        }}
-      />
     </>
   );
 }

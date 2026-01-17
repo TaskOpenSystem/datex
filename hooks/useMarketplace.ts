@@ -38,14 +38,21 @@ export function useAllListings() {
     queryFn: async () => {
       if (!registryId) return [];
 
+      console.log('[useAllListings] Fetching registry:', registryId);
+
       // 1. Get the registry object to find all listing IDs
       const registry = await suiClient.getObject({
         id: registryId,
         options: { showContent: true },
       });
 
-      const content = registry.data?.content as { fields?: { listings?: { fields?: { contents?: Array<{ id?: string }> } } } } | undefined;
-      const listingIds: string[] = (content?.fields?.listings?.fields?.contents?.map((item) => item.id).filter((id): id is string => !!id) || []);
+      console.log('[useAllListings] Registry data:', registry.data);
+
+      // VecSet<ID> stores IDs as an array of strings directly
+      const content = registry.data?.content as { fields?: { listings?: { fields?: { contents?: string[] } } } } | undefined;
+      const listingIds: string[] = (content?.fields?.listings?.fields?.contents || []).filter((id): id is string => !!id && id.startsWith('0x'));
+
+      console.log('[useAllListings] Found listings:', listingIds.length, listingIds);
 
       if (listingIds.length === 0) return [];
 
@@ -54,6 +61,8 @@ export function useAllListings() {
         ids: listingIds,
         options: { showContent: true },
       });
+
+      console.log('[useAllListings] Fetched objects:', objects.length);
 
       return objects
         .map((obj) => {
@@ -75,6 +84,7 @@ export function useAllListings() {
         .filter((listing): listing is DatasetListing => listing !== null);
     },
     enabled: !!registryId,
+    refetchInterval: 30000,
   });
 }
 
@@ -378,4 +388,195 @@ export function useAccountBalance() {
     enabled: !!account?.address,
     refetchInterval: 10000,
   });
+}
+
+export function usePurchasedDatasets(address?: string) {
+  const suiClient = useSuiClient();
+
+  return useQuery({
+    queryKey: ['purchased-datasets', address],
+    queryFn: async () => {
+      if (!address) return [];
+      
+      const RECEIPT_TYPE = `${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::PurchaseReceipt`;
+      
+      const { data } = await suiClient.getOwnedObjects({
+        owner: address,
+        filter: { StructType: RECEIPT_TYPE },
+        options: { showContent: true, showType: true },
+      });
+
+      return data
+        .map((obj) => {
+          if (!obj.data?.content || obj.data.content.dataType !== 'moveObject') return null;
+          const fields = obj.data.content.fields as Record<string, unknown>;
+          return {
+            id: obj.data.objectId || '',
+            datasetId: (fields.dataset_id as { id: string })?.id || '',
+            buyer: fields.buyer as string,
+            seller: fields.seller as string,
+            price: BigInt(fields.price as string),
+            timestamp: Number(fields.timestamp),
+          };
+        })
+        .filter((receipt): receipt is { id: string; datasetId: string; buyer: string; seller: string; price: bigint; timestamp: number } => receipt !== null);
+    },
+    enabled: !!address,
+    refetchInterval: 10000,
+  });
+}
+
+export function useDownloadDataset() {
+  const { mutate: signAndExecute, isPending } = useSignAndExecuteTransaction();
+  const { data: balance } = useAccountBalance();
+
+  const WALRUS_AGGREGATORS = [
+    'https://aggregator.walrus-testnet.walrus.space',
+    'https://blob-rpc-testnet.walrus.space',
+  ];
+
+  // Helper to fetch from Walrus using HTTP API
+  const fetchFromWalrusAndDownload = useCallback(async (blobId: string, onSuccess: (data: Uint8Array) => void, onError: (err: Error) => void) => {
+    try {
+      console.log('[Walrus] Fetching blob:', blobId);
+
+      // Check if blobId is a hex string (starts with 0x)
+      if (blobId.startsWith('0x')) {
+        console.log('[Walrus] Hex blobId detected - this is a content hash, not a Walrus blob ID');
+        onError(new Error('This listing has incorrect blobId format. The file needs to be re-uploaded to get a valid Walrus blob ID.'));
+        return;
+      }
+
+      // Try multiple aggregators
+      let bytes: Uint8Array | null = null;
+      let lastError: Error | null = null;
+
+      for (const aggregator of WALRUS_AGGREGATORS) {
+        try {
+          console.log('[Walrus] Trying aggregator:', aggregator);
+          const response = await fetch(`${aggregator}/v1/blobs/${blobId}`, {
+            method: 'GET',
+            signal: AbortSignal.timeout(30000),
+          });
+
+          if (response.ok) {
+            const arrayBuffer = await response.arrayBuffer();
+            bytes = new Uint8Array(arrayBuffer);
+            console.log('[Walrus] Success! Size:', bytes.length);
+            break;
+          } else if (response.status !== 404) {
+            const text = await response.text();
+            console.log('[Walrus] Error from aggregator:', response.status, text);
+          }
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error('Connection error');
+          console.log('[Walrus] Connection error:', lastError.message);
+        }
+      }
+
+      if (bytes) {
+        onSuccess(bytes);
+      } else {
+        onError(new Error('Blob not found on any Walrus aggregator. The blob may have expired or been deleted.'));
+      }
+    } catch (err) {
+      console.error('[Walrus] Error:', err);
+      onError(err instanceof Error ? err : new Error('Failed to fetch from Walrus'));
+    }
+  }, []);
+
+  const download = useCallback(
+    async (
+      listing: DatasetListing,
+      buyerAddress: string,
+      txDigest: string,
+      onSuccess: (data: Uint8Array) => void,
+      onError: (error: Error) => void
+    ) => {
+      try {
+        // Try enclave first
+        const response = await fetch(`${marketplaceConfig.enclaveUrl}/process_data`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            payload: {
+              dataset_id: listing.id,
+              blob_id: listing.blobId,
+              payment_tx_digest: txDigest,
+              buyer_address: buyerAddress,
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          // Fallback to direct Walrus
+          console.log('[Download] Enclave failed, trying Walrus...');
+          await fetchFromWalrusAndDownload(listing.blobId, onSuccess, onError);
+          return;
+        }
+
+        const result = await response.json();
+        
+        if (result.error) {
+          throw new Error(result.error);
+        }
+
+        const dataStr = result.data?.decrypted_data || result.data;
+        if (dataStr) {
+          const binaryStr = atob(dataStr);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          onSuccess(bytes);
+        } else {
+          throw new Error('No data returned');
+        }
+      } catch (err) {
+        onError(err instanceof Error ? err : new Error('Download failed'));
+      }
+    },
+    [fetchFromWalrusAndDownload]
+  );
+
+  const downloadFile = useCallback(
+    async (
+      listing: DatasetListing,
+      buyerAddress: string,
+      txDigest: string,
+      filename: string
+    ) => {
+      return new Promise<boolean>((resolve, reject) => {
+        download(
+          listing,
+          buyerAddress,
+          txDigest,
+          (data) => {
+            const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+            const blob = new Blob([arrayBuffer as ArrayBuffer], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            resolve(true);
+          },
+          (err) => {
+            reject(err);
+          }
+        );
+      });
+    },
+    [download]
+  );
+
+  return {
+    download,
+    downloadFile,
+    isPending,
+    balance,
+  };
 }
