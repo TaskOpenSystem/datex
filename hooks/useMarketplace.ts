@@ -415,19 +415,46 @@ export function useListing(listingId: string | undefined) {
     queryFn: async () => {
       if (!listingId) return null;
       
+      console.log('[useListing] Fetching listing:', listingId);
+      
       const object = await suiClient.getObject({
         id: listingId,
-        options: { showContent: true },
+        options: { showContent: true, showType: true },
       });
 
-      if (
-        object.data?.content?.dataType !== 'moveObject' ||
-        !object.data.type?.includes('DatasetListing')
-      ) {
+      console.log('[useListing] Object response:', object);
+
+      if (!object.data?.content || object.data.content.dataType !== 'moveObject') {
+        console.log('[useListing] Not a move object or no content');
         return null;
       }
 
-      return parseDatasetListing(object.data.content.fields as Record<string, unknown>);
+      // Check if it's a DatasetListing type
+      if (!object.data.type?.includes('DatasetListing')) {
+        console.log('[useListing] Not a DatasetListing type:', object.data.type);
+        return null;
+      }
+
+      const fields = object.data.content.fields as Record<string, unknown>;
+      console.log('[useListing] Fields:', fields);
+
+      // Parse directly from fields (same as useOwnedListings and useAllListings)
+      try {
+        return {
+          id: listingId, // Use the passed listingId directly
+          seller: fields.seller as string,
+          price: BigInt(fields.price as string),
+          blobId: fields.blob_id as string,
+          encryptedObject: fields.encrypted_object as string,
+          name: fields.name as string,
+          description: fields.description as string,
+          previewSize: BigInt(fields.preview_size as string),
+          totalSize: BigInt(fields.total_size as string),
+        } as DatasetListing;
+      } catch (err) {
+        console.error('[useListing] Parse error:', err);
+        return null;
+      }
     },
     enabled: !!listingId,
   });
