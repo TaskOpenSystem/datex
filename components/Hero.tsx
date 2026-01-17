@@ -28,6 +28,39 @@ export default function Hero() {
           </span>
         </div>
       </div>
+      {/* Data Icon */}
+      <div
+        className="absolute top-32 right-12 md:right-32 animate-float"
+        style={{ animationDelay: "1.5s" }}
+      >
+        <div className="bg-primary w-14 h-14 md:w-20 md:h-20 rounded-xl border-4 border-black dark:border-white flex items-center justify-center shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)] transform rotate-6">
+          <span className="material-icons text-3xl md:text-5xl text-white">
+            dns
+          </span>
+        </div>
+      </div>
+      {/* Encryption Icon */}
+      <div
+        className="absolute bottom-20 left-12 md:left-32 animate-float"
+        style={{ animationDelay: "2.5s" }}
+      >
+        <div className="bg-slush-orange w-16 h-16 md:w-24 md:h-24 rounded-full border-4 border-black dark:border-white flex items-center justify-center shadow-[-6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[-6px_6px_0px_0px_rgba(255,255,255,1)] transform -rotate-6">
+          <span className="material-icons text-3xl md:text-5xl text-white">
+            enhanced_encryption
+          </span>
+        </div>
+      </div>
+      {/* Decentralize Icon */}
+      <div
+        className="absolute bottom-24 right-8 md:right-20 animate-float"
+        style={{ animationDelay: "3s" }}
+      >
+        <div className="bg-slush-green w-12 h-12 md:w-18 md:h-18 rounded-lg border-4 border-black dark:border-white flex items-center justify-center shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,1)] transform rotate-12">
+          <span className="material-icons text-2xl md:text-4xl text-black">
+            hub
+          </span>
+        </div>
+      </div>
       <div className="relative z-10 text-center max-w-5xl px-4 flex flex-col items-center">
         <div className="mb-4 inline-flex items-center gap-2 px-4 py-2 bg-white/50 dark:bg-black/50 border border-black dark:border-white rounded-full backdrop-blur-sm">
           <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
@@ -43,12 +76,12 @@ export default function Hero() {
           </span>
         </h1>
         <p className="text-lg md:text-xl font-medium max-w-xl mx-auto mb-10 text-gray-700 dark:text-gray-300">
-          Monetize your insights securely. Built on Walrus, Seal, and Nautilus
+          Monetize your data securely. Built on Walrus, Seal, and Nautilus
           for unstoppable decentralized data trading.
         </p>
         <div className="flex flex-col md:flex-row gap-4">
           <button className="bg-black dark:bg-white text-white dark:text-black text-lg px-8 py-4 rounded-full font-bold uppercase tracking-wide hover:scale-105 transition-transform shadow-lg">
-            Start Trading
+            Start Monetizing Data
           </button>
           <button className="bg-white dark:bg-black text-black dark:text-white border-2 border-black dark:border-white text-lg px-8 py-4 rounded-full font-bold uppercase tracking-wide hover:scale-105 transition-transform shadow-lg">
             Learn More
