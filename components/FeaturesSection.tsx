@@ -3,7 +3,7 @@ export default function FeaturesSection() {
     <section className="py-20 px-4 md:px-8 max-w-7xl mx-auto">
       <div className="mb-12 text-center">
         <h2 className="font-display text-5xl md:text-6xl mb-4 uppercase">
-          Your Shortcut to <br className="md:hidden" />
+          Your Shortcut to get <br className="md:hidden" />
           Data
         </h2>
       </div>
@@ -32,7 +32,7 @@ export default function FeaturesSection() {
             <img
               alt="Coins"
               className="w-full h-full object-cover rounded-full border-4 border-black transform rotate-12 group-hover:rotate-0 transition-transform duration-500"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuB0ai7XTEmyvO7ZQveNlfdjDqYAhddnABupzbxi4502f7gVEece6Rz4v3iehcoVnpIaHflkAILb-JJnHBJv6xbI00gskh0JKb6i6XUHI-pgiM9fUtr2TY2xhte0jk1yE_M_qtg-mNb_pgCGv8Hz348JMHm2FOqFMyiHnCeiAILzq4lsaD6_M2BzPHNfuCr_otmnG-p8huS_mYpMv3PpqeYkCox-grWR4VVyhFFwQiCbx8Dhpb9VjB-k82GNdjvOUYVRWf2AIBJVIeQ"
+              src="/walrus.svg"
             />
           </div>
           <div className="absolute top-10 right-10 text-black text-6xl animate-bounce hidden md:block">
@@ -50,20 +50,33 @@ export default function FeaturesSection() {
               Execution
             </h3>
             <p className="text-white font-medium">
-              Buy and sell insights in a few taps. Withdraw rewards in the
-              asset you choose.
+              Buy and sell datasets in a few taps. Verify dataset with simple
+              click.
             </p>
           </div>
           <div className="mt-8 relative h-48 bg-white rounded-xl border-2 border-black overflow-hidden shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-            <img
-              alt="Dashboard UI"
-              className="w-full h-full object-cover"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKex8a_e-zMsWgED0P_d6wr-VKsWiQ2ZgrAmzMrDUKoanS5rsZeuWOzWyp4BXNFbHuGzdDNj4G9FQEVZdNZP6YLmDF_VT0VV4Zm9_jyvOzW8_QGPs2nJL7gMWPzan9FILt9SUF-rnhGnxa8Rt-1IKb6nmvK8NNqDr5L_Zo5cpzB55YzwsmC_8AxN_Of29qguqaQGbSPGqFX-UFqM4q1KN_guIGvW5TZhU8mkgMfyRQWc9oYvXFz6jdR8ME-mPMu6wfNApTiFc8Eq8"
-            />
-            <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
-              <button className="bg-slush-yellow text-black border-2 border-black px-6 py-2 font-display text-2xl uppercase transform -rotate-3 hover:rotate-0 transition-transform">
-                EARN!
+            {/* Animation Container */}
+            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+              {/* Buy Button */}
+              <button
+                className="buy-button bg-black text-white px-8 py-3 rounded-full font-bold text-sm uppercase tracking-wide border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)]"
+              >
+                Buy Now
+                <span className="material-icons text-sm align-middle ml-2">shopping_cart</span>
               </button>
+
+              {/* Animated Cursor */}
+              <div className="cursor-animation absolute">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M4 2L4 18L8 14L12 22L14 21L10 13L16 13L4 2Z"
+                    fill="black"
+                    stroke="white"
+                    strokeWidth="2"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
             </div>
           </div>
         </div>

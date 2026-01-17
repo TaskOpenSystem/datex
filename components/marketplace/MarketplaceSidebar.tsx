@@ -283,7 +283,7 @@ export default function MarketplaceSidebar() {
                 </span>
               </div>
               <div className="flex flex-col flex-1 min-w-0">
-                <span className="text-sm font-bold truncate">
+                <span className="text-sm font-bold text-ink truncate">
                   {suinsName ? `@${suinsName}` : formatAddress(account.address)}
                 </span>
                 {suinsName && (
