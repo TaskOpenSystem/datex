@@ -16,8 +16,8 @@ export default function Navbar() {
           <a className="hover:text-primary transition-colors" href="/">
             Home
           </a>
-          <a className="hover:text-primary transition-colors" href="#">
-            App
+          <a className="hover:text-primary transition-colors" href="/marketplace">
+            Marketplace
           </a>
           <a className="hover:text-primary transition-colors" href="#">
             About

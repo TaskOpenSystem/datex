@@ -46,22 +46,22 @@ export default function MyDataPage() {
 
       // Reset common props
       gsap.set(progressRef.current, { width: "0%", backgroundColor: "white" });
-      if(pathRef.current) pathRef.current.style.fill = "white";
+      if (pathRef.current) pathRef.current.style.fill = "white";
 
       if (processingType === 'create') {
         gsap.set(sealRef.current, { scale: 3, opacity: 0, rotation: -45, borderColor: "white", boxShadow: "none", x: 0 });
         gsap.set(iconRef.current, { scale: 0.5, opacity: 0, color: "white", rotation: 0 });
-        if(iconRef.current) iconRef.current.innerText = "lock";
+        if (iconRef.current) iconRef.current.innerText = "lock";
 
         tl.to(overlayRef.current, { opacity: 1, duration: 0.2 })
-          .to(textRef.current, { 
-            duration: 0.5, 
-            onStart: () => { 
-              if(textRef.current) {
-                textRef.current.innerText = "ENCRYPTING METADATA"; 
+          .to(textRef.current, {
+            duration: 0.5,
+            onStart: () => {
+              if (textRef.current) {
+                textRef.current.innerText = "ENCRYPTING METADATA";
                 textRef.current.className = "mt-12 text-3xl font-black text-white uppercase tracking-[0.2em] text-center px-4";
               }
-              if(subTextRef.current) subTextRef.current.innerText = "Preparing asset for encryption";
+              if (subTextRef.current) subTextRef.current.innerText = "Preparing asset for encryption";
             }
           })
           .to(progressRef.current, { width: "60%", duration: 1.2, ease: "power2.inOut" })
@@ -69,18 +69,18 @@ export default function MyDataPage() {
           .to(overlayRef.current, { backgroundColor: "#101618", duration: 0.1, yoyo: true, repeat: 1 }, "-=0.2")
           .to(iconRef.current, { scale: 1, opacity: 1, duration: 0.3, ease: "back.out(1.7)" })
           .add(() => {
-             if(textRef.current) textRef.current.innerText = "VERIFYING ZK-PROOFS";
-             if(subTextRef.current) subTextRef.current.innerText = "Generating SNARKs on Sui Network...";
+            if (textRef.current) textRef.current.innerText = "VERIFYING ZK-PROOFS";
+            if (subTextRef.current) subTextRef.current.innerText = "Generating SNARKs on Sui Network...";
           })
           .to(progressRef.current, { width: "90%", duration: 1 })
           .to(sealRef.current, { borderColor: "#ccff00", boxShadow: "0 0 30px #ccff00", duration: 0.3 })
           .to(iconRef.current, { color: "#ccff00", duration: 0.3 }, "<")
           .add(() => {
-             if(textRef.current) {
-               textRef.current.innerText = "ASSET SECURED";
-               textRef.current.classList.add("text-accent-lime");
-             }
-             if(subTextRef.current) subTextRef.current.innerText = "Listing created successfully.";
+            if (textRef.current) {
+              textRef.current.innerText = "ASSET SECURED";
+              textRef.current.classList.add("text-accent-lime");
+            }
+            if (subTextRef.current) subTextRef.current.innerText = "Listing created successfully.";
           })
           .to(progressRef.current, { width: "100%", backgroundColor: "#ccff00", duration: 0.3 })
           .to(sealRef.current, { scale: 1.1, duration: 0.2, yoyo: true, repeat: 1 });
@@ -88,47 +88,47 @@ export default function MyDataPage() {
       } else {
         gsap.set(sealRef.current, { scale: 0.5, opacity: 0, rotation: 0, borderColor: "white", boxShadow: "none", x: 0 });
         gsap.set(iconRef.current, { scale: 1, opacity: 1, color: "white", rotation: 0 });
-        if(iconRef.current) iconRef.current.innerText = "lock";
+        if (iconRef.current) iconRef.current.innerText = "lock";
 
         tl.to(overlayRef.current, { opacity: 1, duration: 0.2 })
           .to(sealRef.current, { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.7)" })
           .add(() => {
-             if(textRef.current) {
-                textRef.current.innerText = "VERIFYING OWNERSHIP";
-                textRef.current.className = "mt-12 text-3xl font-black text-white uppercase tracking-[0.2em] text-center px-4";
-             }
-             if(subTextRef.current) subTextRef.current.innerText = "Checking wallet signature...";
+            if (textRef.current) {
+              textRef.current.innerText = "VERIFYING OWNERSHIP";
+              textRef.current.className = "mt-12 text-3xl font-black text-white uppercase tracking-[0.2em] text-center px-4";
+            }
+            if (subTextRef.current) subTextRef.current.innerText = "Checking wallet signature...";
           })
           .to(sealRef.current, { rotation: 180, duration: 1, ease: "power2.inOut" })
           .to(progressRef.current, { width: "40%", duration: 1 }, "<")
           .to(iconRef.current, { scale: 0, rotation: 90, duration: 0.2 })
           .add(() => {
-             if(iconRef.current) iconRef.current.innerText = "lock_open";
-             if(textRef.current) textRef.current.innerText = "DECRYPTING SHARDS";
-             if(subTextRef.current) subTextRef.current.innerText = "Reassembling Walrus Protocol data...";
+            if (iconRef.current) iconRef.current.innerText = "lock_open";
+            if (textRef.current) textRef.current.innerText = "DECRYPTING SHARDS";
+            if (subTextRef.current) subTextRef.current.innerText = "Reassembling Walrus Protocol data...";
           })
           .to(iconRef.current, { scale: 1, rotation: 0, duration: 0.2 })
           .to(progressRef.current, { width: "75%", duration: 1.2 })
           .to(sealRef.current, { x: 5, duration: 0.05, yoyo: true, repeat: 5 })
-          .to(sealRef.current, { 
-             borderColor: "#ccff00",
-             backgroundColor: "#101618",
-             boxShadow: "0 0 50px rgba(204, 255, 0, 0.4)",
-             scale: 1.1,
-             duration: 0.3
+          .to(sealRef.current, {
+            borderColor: "#ccff00",
+            backgroundColor: "#101618",
+            boxShadow: "0 0 50px rgba(204, 255, 0, 0.4)",
+            scale: 1.1,
+            duration: 0.3
           })
           .to(iconRef.current, { scale: 0, duration: 0.1 }, "<")
           .add(() => {
-             if(iconRef.current) {
-               iconRef.current.innerText = "download";
-               iconRef.current.style.color = "#ccff00";
-             }
-             if(textRef.current) {
-               textRef.current.innerText = "DECRYPTION COMPLETE";
-               textRef.current.classList.add("text-accent-lime");
-             }
-             if(subTextRef.current) subTextRef.current.innerText = "Download starting now.";
-             if(pathRef.current) pathRef.current.style.fill = "#ccff00";
+            if (iconRef.current) {
+              iconRef.current.innerText = "download";
+              iconRef.current.style.color = "#ccff00";
+            }
+            if (textRef.current) {
+              textRef.current.innerText = "DECRYPTION COMPLETE";
+              textRef.current.classList.add("text-accent-lime");
+            }
+            if (subTextRef.current) subTextRef.current.innerText = "Download starting now.";
+            if (pathRef.current) pathRef.current.style.fill = "#ccff00";
           })
           .to(iconRef.current, { scale: 1.5, duration: 0.4, ease: "elastic.out(1, 0.5)" })
           .to(progressRef.current, { width: "100%", backgroundColor: "#ccff00", duration: 0.3 });
@@ -149,7 +149,7 @@ export default function MyDataPage() {
             </div>
             <h1 className="text-4xl font-black text-ink uppercase tracking-tight">My Data Dashboard</h1>
           </div>
-          
+
           <div className="relative group">
             <div className="absolute -inset-1 rounded-xl bg-ink opacity-100 translate-x-1 translate-y-1 blur-0"></div>
             <div className="relative flex items-center gap-6 rounded-xl border-2 border-ink bg-white p-4 pr-8 shadow-sm">
@@ -194,10 +194,10 @@ export default function MyDataPage() {
               View Analytics <span className="material-symbols-outlined text-sm">arrow_outward</span>
             </button>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {/* Create New Card */}
-            <article 
+            <article
               onClick={() => setIsCreateModalOpen(true)}
               className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-ink bg-gray-50 p-6 min-h-[340px] hover:bg-blue-50 hover:border-primary transition-all duration-200 cursor-pointer group"
             >
@@ -227,7 +227,7 @@ export default function MyDataPage() {
               Recent Purchases <span className="text-gray-400 text-base font-normal ml-1">({MY_PURCHASES.length} items)</span>
             </h2>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {MY_PURCHASES.map(purchase => (
               <article key={purchase.id} className="flex flex-col rounded-xl border-2 border-ink bg-white p-4 shadow-hard-sm">
@@ -239,7 +239,7 @@ export default function MyDataPage() {
                 </div>
                 <h3 className="text-lg font-bold text-ink mb-1">{purchase.title}</h3>
                 <p className="text-sm text-gray-500 mb-4">{purchase.date}</p>
-                <button 
+                <button
                   onClick={handleDownload}
                   className="mt-auto w-full h-10 rounded-lg border-2 border-ink bg-white hover:bg-primary hover:text-white font-bold transition-colors flex items-center justify-center gap-2"
                 >
@@ -250,15 +250,6 @@ export default function MyDataPage() {
           </div>
         </section>
       </div>
-
-      <footer className="mt-auto border-t-2 border-ink pt-8 flex flex-col items-center gap-4 text-center opacity-60 pb-8 bg-[#f6f7f9]">
-        <p className="text-sm font-bold">Powered by Sui Network</p>
-        <div className="flex gap-4">
-          <span className="material-symbols-outlined">dataset</span>
-          <span className="material-symbols-outlined">security</span>
-          <span className="material-symbols-outlined">hub</span>
-        </div>
-      </footer>
 
       {/* Create Listing Modal */}
       {isCreateModalOpen && (
@@ -272,7 +263,7 @@ export default function MyDataPage() {
             </button>
 
             <h2 className="text-2xl font-black text-ink uppercase mb-6">Create New Listing</h2>
-            
+
             <form onSubmit={handleCreateListing}>
               {/* File Upload Area */}
               <div className="mb-6">
@@ -292,7 +283,7 @@ export default function MyDataPage() {
                   <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Title</label>
                   <input type="text" className="w-full rounded-lg border-2 border-gray-200 focus:border-ink focus:ring-0 font-bold text-ink placeholder:text-gray-300 transition-colors p-3" placeholder="e.g. Q3 DeFi Transaction Logs" required />
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Description</label>
                   <textarea className="w-full rounded-lg border-2 border-gray-200 focus:border-ink focus:ring-0 font-medium text-ink placeholder:text-gray-300 transition-colors min-h-[100px] p-3" placeholder="Describe your dataset..." required />
@@ -338,29 +329,29 @@ export default function MyDataPage() {
 
       {/* Animation Overlay */}
       {processingType && (
-        <div 
+        <div
           ref={overlayRef}
           className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-ink/95 backdrop-blur-md transition-colors opacity-0"
         >
           {/* The Seal */}
-          <div 
+          <div
             ref={sealRef}
             className="relative flex h-64 w-64 items-center justify-center rounded-full border-[6px] border-white bg-ink shadow-2xl"
           >
             {/* Inner Rings */}
             <div className="absolute inset-2 rounded-full border-2 border-dashed border-white/30 animate-spin" style={{ animationDuration: '10s' }}></div>
             <div className="absolute inset-4 rounded-full border border-white/10 animate-spin" style={{ animationDuration: '8s', animationDirection: 'reverse' }}></div>
-            
+
             {/* Icon */}
             <span ref={iconRef} className="material-symbols-outlined text-8xl text-white relative z-10">lock</span>
-            
+
             {/* Decorative Text Ring */}
             <svg className="absolute inset-0 h-full w-full animate-spin" style={{ animationDuration: '20s', animationDirection: 'reverse' }} viewBox="0 0 100 100" width="100" height="100">
               <path id="circlePathCommon" d="M 50, 50 m -35, 0 a 35,35 0 1,1 70,0 a 35,35 0 1,1 -70,0" fill="transparent" />
               <text fill="white" fontSize="8" fontWeight="bold" letterSpacing="2">
                 <textPath ref={pathRef} href="#circlePathCommon" startOffset="0%">
-                  {processingType === 'create' 
-                    ? "SUI DATA MARKETPLACE • SECURE ENCRYPTION •" 
+                  {processingType === 'create'
+                    ? "SUI DATA MARKETPLACE • SECURE ENCRYPTION •"
                     : "SECURE DECRYPTION • WALRUS PROTOCOL •"}
                 </textPath>
               </text>
@@ -368,8 +359,8 @@ export default function MyDataPage() {
           </div>
 
           {/* Status Text */}
-          <h2 
-            ref={textRef} 
+          <h2
+            ref={textRef}
             className="mt-12 text-3xl font-black text-white uppercase tracking-[0.2em] text-center px-4"
           >
             INITIALIZING
@@ -380,8 +371,8 @@ export default function MyDataPage() {
 
           {/* Progress Bar */}
           <div className="mt-8 h-4 w-64 rounded-full border-2 border-white bg-gray-800 p-1">
-            <div 
-              ref={progressRef} 
+            <div
+              ref={progressRef}
               className="h-full w-0 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)]"
             ></div>
           </div>

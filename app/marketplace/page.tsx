@@ -20,7 +20,7 @@ export default function MarketplacePage() {
       <MarketplaceHeader />
       <div className="flex-1 px-8 pb-12 flex flex-col gap-10 z-10">
         <FeaturedCollections />
-        
+
         <section>
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold tracking-tight text-ink flex items-center gap-2">
@@ -31,32 +31,23 @@ export default function MarketplacePage() {
               <span className="text-ink cursor-pointer hover:text-primary transition-colors">Newest</span>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {DATA_ASSETS.map(asset => (
-              <AssetCard 
-                key={asset.id} 
-                asset={asset} 
+              <AssetCard
+                key={asset.id}
+                asset={asset}
                 onClick={() => setSelectedAsset(asset)}
               />
             ))}
           </div>
-          
+
           <div className="mt-12 flex justify-center">
             <button className="rounded-xl border-2 border-ink bg-white px-8 py-3 font-bold text-ink shadow-hard hover:bg-gray-50 hover:scale-105 transition-all">
               Load More Data
             </button>
           </div>
         </section>
-        
-        <footer className="mt-10 border-t-2 border-ink pt-8 flex flex-col items-center gap-4 text-center opacity-60 pb-8">
-          <p className="text-sm font-bold">Powered by Sui Network</p>
-          <div className="flex gap-4">
-            <span className="material-symbols-outlined">dataset</span>
-            <span className="material-symbols-outlined">security</span>
-            <span className="material-symbols-outlined">hub</span>
-          </div>
-        </footer>
       </div>
 
       {/* Floating Decorative Element */}
