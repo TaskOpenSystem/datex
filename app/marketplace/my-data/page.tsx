@@ -11,6 +11,7 @@ import { Transaction } from '@mysten/sui/transactions';
 import { marketplaceConfig, MIST_PER_SUI } from '@/config/marketplace';
 import { getMarketplaceTarget } from '@/lib/marketplace';
 import { encryptForMarketplace } from '@/lib/seal';
+import { useWalrusPayment } from '@/hooks/useWalrusPayment';
 
 // Type for Walrus write blob flow (raw bytes, no file metadata)
 interface WalrusBlobFlow {
@@ -41,6 +42,7 @@ interface TransactionLog {
   status: 'pending' | 'processing' | 'success' | 'error';
   message: string;
   details?: string;
+  link?: { url: string; label: string };
   timestamp: string;
 }
 
@@ -59,6 +61,7 @@ export default function MyDataPage() {
   const { data: listings, isLoading, refetch } = useOwnedListings(account?.address);
   const { data: balance } = useAccountBalance();
   const { data: purchases, isLoading: isPurchasesLoading } = usePurchasedDatasets(account?.address);
+  const { ensureWalBalance, getStorageCost, checkBalance, formatWal, formatSui, getPrices, isLoading: isWalrusLoading } = useWalrusPayment();
 
   const [activeTab, setActiveTab] = useState<Tab>('uploads');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -84,15 +87,31 @@ export default function MyDataPage() {
   });
 
   const flowRef = useRef<Awaited<ReturnType<typeof createFlow>> | null>(null);
+  const logContainerRef = useRef<HTMLDivElement>(null);
 
-  const addLog = (step: string, status: TransactionLog['status'], message: string, details?: string) => {
+  // Auto-scroll log panel when new logs are added
+  React.useEffect(() => {
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [logs]);
+
+  const addLog = (step: string, status: TransactionLog['status'], message: string, details?: string, link?: { url: string; label: string }) => {
     setLogs(prev => [...prev, {
       step,
       status,
       message,
       details,
+      link,
       timestamp: new Date().toLocaleTimeString(),
     }]);
+  };
+
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const addLogWithDelay = async (step: string, status: TransactionLog['status'], message: string, details?: string, link?: { url: string; label: string }, delayMs: number = 300) => {
+    await delay(delayMs);
+    addLog(step, status, message, details, link);
   };
 
   const createFlow = useCallback(async (data: Uint8Array, _identifier: string) => {
@@ -167,16 +186,57 @@ export default function MyDataPage() {
         encryptedObj = encryptResult.encryptedHex.slice(0, 128); // Store first 128 chars as reference
         
         console.log('Encrypted data size:', dataToUpload.length);
-        addLog('encode', 'success', 'File encrypted with Seal');
+        await addLogWithDelay('encode', 'success', 'File encrypted with Seal');
       } catch (encryptError) {
         console.warn('Seal encryption failed, uploading unencrypted:', encryptError);
         // Fallback: upload unencrypted if Seal fails
         dataToUpload = uint8Array;
         encryptedObj = bytesToHex(uint8Array).slice(0, 128);
-        addLog('encode', 'success', 'File prepared (unencrypted fallback)');
+        await addLogWithDelay('encode', 'success', 'File prepared (unencrypted fallback)');
       }
 
       setEncryptedObject(encryptedObj);
+
+      // Step 0.5: Check WAL balance for Walrus storage cost (auto-swap SUI → WAL if needed)
+      setCurrentStep('register');
+      const storageCost = getStorageCost(dataToUpload.length, 3);
+      const walCostFormatted = formatWal(storageCost.totalCostFrost);
+      
+      // Get swap prices to show SUI equivalent
+      let suiNeeded = 0;
+      let suiEquivalent = '';
+      try {
+        const prices = await getPrices();
+        if (prices) {
+          const walAmount = Number(storageCost.totalCostFrost) / 1e9;
+          suiNeeded = walAmount * (prices.walUsd / prices.suiUsd) * 1.1;
+          suiEquivalent = ` (~${suiNeeded.toFixed(6)} SUI)`;
+        }
+      } catch {
+        // Prices unavailable
+      }
+      
+      // Check current WAL balance first
+      const balanceCheck = await checkBalance(dataToUpload.length, 3);
+      const hasEnoughWal = balanceCheck?.sufficient ?? false;
+      
+      if (hasEnoughWal) {
+        await addLogWithDelay('register', 'processing', `Storage cost: ${walCostFormatted} WAL (paying with WAL)`);
+      } else {
+        await addLogWithDelay('register', 'processing', `Storage cost: ${walCostFormatted} WAL → Swapping ${suiNeeded.toFixed(6)} SUI to WAL...`);
+      }
+      
+      const walResult = await ensureWalBalance(dataToUpload.length, 3);
+      if (!walResult.success) {
+        await addLogWithDelay('register', 'error', `Need ${walCostFormatted} WAL${suiEquivalent}. ${walResult.error}`);
+        setUploadError(`Insufficient balance. Need ${walCostFormatted} WAL${suiEquivalent}.`);
+        setIsProcessing(false);
+        return;
+      }
+      
+      if (!hasEnoughWal) {
+        await addLogWithDelay('register', 'success', `Swapped SUI → WAL. Balance: ${formatWal(walResult.walBalance)} WAL`);
+      }
 
       // Step 1: Create flow with encrypted data
       const flow = await createFlow(dataToUpload, file.name);
@@ -184,8 +244,7 @@ export default function MyDataPage() {
       await flow.encode();
 
       // Step 2: Register blob on-chain
-      setCurrentStep('register');
-      addLog('register', 'processing', 'Registering blob on Sui...');
+      await addLogWithDelay('register', 'processing', 'Registering blob on Sui...');
 
       const registerTx = flow.register({
         epochs: 3,
@@ -198,18 +257,18 @@ export default function MyDataPage() {
         {
           onSuccess: async (result) => {
             try {
-              addLog('register', 'success', 'Blob registered', `TX: ${result.digest.slice(0, 16)}...`);
+              await addLogWithDelay('register', 'success', 'Blob registered', `TX: ${result.digest.slice(0, 16)}...`, { url: `https://suiscan.xyz/testnet/tx/${result.digest}`, label: 'View on SuiScan' });
 
               // Step 3: Upload to Walrus storage nodes
               setCurrentStep('upload');
-              addLog('upload', 'processing', 'Uploading to Walrus...');
+              await addLogWithDelay('upload', 'processing', 'Uploading to Walrus...');
 
               await flow.upload({ digest: result.digest });
-              addLog('upload', 'success', 'Uploaded to Walrus storage nodes');
+              await addLogWithDelay('upload', 'success', 'Uploaded to Walrus storage nodes');
 
               // Step 4: Certify blob
               setCurrentStep('certify');
-              addLog('certify', 'processing', 'Certifying blob on Sui...');
+              await addLogWithDelay('certify', 'processing', 'Certifying blob on Sui...');
 
               const certifyTx = flow.certify();
 
@@ -217,7 +276,7 @@ export default function MyDataPage() {
                 { transaction: certifyTx },
                 {
                   onSuccess: async (certifyResult) => {
-                    addLog('certify', 'success', 'Blob certified', `TX: ${certifyResult.digest.slice(0, 16)}...`);
+                    await addLogWithDelay('certify', 'success', 'Blob certified', `TX: ${certifyResult.digest.slice(0, 16)}...`, { url: `https://suiscan.xyz/testnet/tx/${certifyResult.digest}`, label: 'View on SuiScan' });
 
                     // Step 5: Get blobId from getBlob (for raw blob upload)
                     let walrusBlobId = '';
@@ -227,7 +286,7 @@ export default function MyDataPage() {
                       walrusBlobId = blobInfo.blobId || '';
                       if (walrusBlobId) {
                         setBlobId(walrusBlobId);
-                        addLog('complete', 'success', 'Blob ID obtained', `ID: ${walrusBlobId.slice(0, 20)}...`);
+                        await addLogWithDelay('complete', 'success', 'Blob ID obtained', `ID: ${walrusBlobId.slice(0, 20)}...`, { url: `https://walruscan.com/testnet/blob/${walrusBlobId}`, label: 'View on WalrusScan' });
                       }
                     } catch (listError) {
                       console.error('[Walrus] getBlob error:', listError);
@@ -236,8 +295,8 @@ export default function MyDataPage() {
                     // Step 6: Create listing
                     await handleCreateListing(price, walrusBlobId, encryptedObj);
                   },
-                  onError: (err) => {
-                    addLog('certify', 'error', err.message || 'Certification failed');
+                  onError: async (err) => {
+                    await addLogWithDelay('certify', 'error', err.message || 'Certification failed');
                     setUploadError(err.message || 'Certification failed');
                     setIsProcessing(false);
                   },
@@ -245,13 +304,13 @@ export default function MyDataPage() {
               );
             } catch (err) {
               const errorMsg = err instanceof Error ? err.message : 'Upload failed';
-              addLog('upload', 'error', errorMsg);
+              await addLogWithDelay('upload', 'error', errorMsg);
               setUploadError(errorMsg);
               setIsProcessing(false);
             }
           },
-          onError: (err) => {
-            addLog('register', 'error', err.message || 'Registration failed');
+          onError: async (err) => {
+            await addLogWithDelay('register', 'error', err.message || 'Registration failed');
             setUploadError(err.message || 'Registration failed');
             setIsProcessing(false);
           },
@@ -259,7 +318,7 @@ export default function MyDataPage() {
       );
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to prepare upload';
-      addLog('encode', 'error', errorMsg);
+      await addLogWithDelay('encode', 'error', errorMsg);
       setUploadError(errorMsg);
       setIsProcessing(false);
     }
@@ -270,7 +329,7 @@ export default function MyDataPage() {
 
     try {
       setCurrentStep('listing');
-      addLog('listing', 'processing', 'Creating listing on marketplace...');
+      await addLogWithDelay('listing', 'processing', 'Creating listing on marketplace...');
 
       const priceInMIST = BigInt(Math.floor(price * Number(MIST_PER_SUI)));
       const registryId = marketplaceConfig.registryId;
@@ -310,14 +369,14 @@ export default function MyDataPage() {
       signAndExecute(
         { transaction: tx },
         {
-          onSuccess: (result) => {
+          onSuccess: async (result) => {
             console.log('=== CREATE LISTING SUCCESS ===');
             console.log('Result:', result);
             const effects = result.effects as { created?: Array<{ reference: { objectId: string } }> } | undefined;
             const newListingId = effects?.created?.[0]?.reference?.objectId || result.digest;
             console.log('New listing ID:', newListingId);
 
-            addLog('listing', 'success', 'Listing created!', `ID: ${newListingId.slice(0, 16)}...`);
+            await addLogWithDelay('listing', 'success', 'Listing created!', `ID: ${newListingId.slice(0, 16)}...`, { url: `https://suiscan.xyz/testnet/object/${newListingId}`, label: 'View on SuiScan' });
             setListingId(newListingId);
 
             setCurrentStep('complete');
@@ -325,10 +384,10 @@ export default function MyDataPage() {
             setProcessingType('create');
             setIsProcessing(false);
           },
-          onError: (err) => {
+          onError: async (err) => {
             console.error('=== CREATE LISTING ERROR ===');
             console.error('Error:', err);
-            addLog('listing', 'error', err.message || 'Failed to create listing');
+            await addLogWithDelay('listing', 'error', err.message || 'Failed to create listing');
             setUploadError(err.message || 'Failed to create listing');
             setIsProcessing(false);
           },
@@ -338,7 +397,7 @@ export default function MyDataPage() {
       console.error('=== CREATE LISTING CATCH ERROR ===');
       console.error('Error:', err);
       const errorMsg = err instanceof Error ? err.message : 'Failed to create listing';
-      addLog('listing', 'error', errorMsg);
+      await addLogWithDelay('listing', 'error', errorMsg);
       setUploadError(errorMsg);
       setIsProcessing(false);
     }
@@ -700,8 +759,14 @@ export default function MyDataPage() {
       </div>
 
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-5xl bg-white rounded-2xl border-2 border-ink shadow-hard-lg max-h-[90vh] overflow-hidden flex flex-col">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4"
+          onClick={closeModal}
+        >
+          <div 
+            className="w-full max-w-5xl bg-white rounded-2xl border-2 border-ink shadow-hard-lg max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between p-4 border-b-2 border-ink">
               <h2 className="text-xl font-black text-ink uppercase">Create New Listing</h2>
               <button
@@ -729,9 +794,9 @@ export default function MyDataPage() {
                     <div className="flex items-center justify-between">
                       {STEPS.map((step, index) => {
                         const stepIndex = STEPS.findIndex(s => s.key === currentStep);
-                        const isCompleted = index < stepIndex;
-                        const isCurrent = step.key === currentStep;
-                        const isPending = index > stepIndex;
+                        const isCompleted = index < stepIndex || currentStep === 'complete';
+                        const isCurrent = step.key === currentStep && currentStep !== 'complete';
+                        const isPending = index > stepIndex && currentStep !== 'complete';
 
                         return (
                           <React.Fragment key={step.key}>
@@ -952,7 +1017,7 @@ export default function MyDataPage() {
                           onClick={closeModal}
                           className="flex-1 h-12 rounded-xl border-2 border-ink bg-white text-ink font-bold hover:bg-gray-100 transition-colors"
                         >
-                          Cancel
+                          {currentStep === 'complete' ? 'Close' : 'Cancel'}
                         </button>
                       </div>
                     </div>
@@ -960,7 +1025,7 @@ export default function MyDataPage() {
                 </div>
 
                 {/* Right Panel - Transaction Logs */}
-                <div className="w-80 border-l-2 border-ink bg-gray-50 p-4 overflow-y-auto">
+                <div ref={logContainerRef} className="w-80 border-l-2 border-ink bg-gray-50 p-4 overflow-y-auto">
                   <h3 className="font-bold uppercase text-sm mb-4 text-ink flex items-center gap-2">
                     <span className="material-symbols-outlined">terminal</span>
                     Transaction Log
@@ -993,6 +1058,17 @@ export default function MyDataPage() {
                           <p className="text-gray-600">{log.message}</p>
                           {log.details && (
                             <p className="text-xs text-gray-400 mt-1 font-mono break-all">{log.details}</p>
+                          )}
+                          {log.link && (
+                            <a 
+                              href={log.link.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs text-primary hover:underline mt-1 inline-flex items-center gap-1"
+                            >
+                              {log.link.label}
+                              <span className="material-symbols-outlined text-xs">open_in_new</span>
+                            </a>
                           )}
                           <p className="text-xs text-gray-400 mt-1">{log.timestamp}</p>
                         </div>
@@ -1046,7 +1122,6 @@ export default function MyDataPage() {
                 <button
                   onClick={() => {
                     setProcessingType(null);
-                    closeModal();
                     refetch();
                   }}
                   className="flex-1 h-12 rounded-xl border-2 border-ink bg-primary text-white font-bold hover:translate-y-0.5 transition-all"
@@ -1056,7 +1131,6 @@ export default function MyDataPage() {
                 <button
                   onClick={() => {
                     setProcessingType(null);
-                    closeModal();
                   }}
                   className="flex-1 h-12 rounded-xl border-2 border-gray-300 bg-white text-gray-700 font-bold hover:bg-gray-50 transition-colors"
                 >
