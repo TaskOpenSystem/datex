@@ -86,7 +86,7 @@ export default function MyDataPage() {
     name: '',
     description: '',
     priceSUI: '',
-    previewSizeBytes: 1024 * 1024,
+    previewSizeBytes: 1024,
     imageUrl: '',
     mimeType: '',
     fileName: '',
@@ -264,7 +264,7 @@ export default function MyDataPage() {
     
     setFormData(prev => ({ 
       ...prev, 
-      previewSizeBytes: Math.min(1024 * 1024, selectedFile.size),
+      previewSizeBytes: 1024,
       mimeType,
       fileName,
       contentType,
@@ -622,7 +622,7 @@ export default function MyDataPage() {
       name: '',
       description: '',
       priceSUI: '',
-      previewSizeBytes: 1024 * 1024,
+      previewSizeBytes: 1024,
       imageUrl: '',
       mimeType: '',
       fileName: '',
@@ -1271,23 +1271,23 @@ export default function MyDataPage() {
                           {/* Preview Size */}
                           <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4">
                             <label className="block text-sm font-bold text-gray-500 uppercase mb-2">Preview Size</label>
-                            <p className="text-xs text-gray-400 mb-3">Amount of data available for free preview</p>
+                            <p className="text-xs text-gray-400 mb-3">Amount of data available for free preview (1KB - 3KB)</p>
                             <input
                               type="range"
                               value={formData.previewSizeBytes}
                               onChange={(e) => handleInputChange('previewSizeBytes', Number(e.target.value))}
-                              min={0}
-                              max={totalSizeBytes || 10 * 1024 * 1024}
-                              step={1024}
+                              min={1024}
+                              max={3072}
+                              step={128}
                               className="w-full h-2 rounded-lg appearance-none cursor-pointer"
                               style={{
-                                background: `linear-gradient(to right, #1a1a1a ${(formData.previewSizeBytes / (totalSizeBytes || 10 * 1024 * 1024)) * 100}%, #e5e7eb ${(formData.previewSizeBytes / (totalSizeBytes || 10 * 1024 * 1024)) * 100}%)`
+                                background: `linear-gradient(to right, #1a1a1a ${((formData.previewSizeBytes - 1024) / (3072 - 1024)) * 100}%, #e5e7eb ${((formData.previewSizeBytes - 1024) / (3072 - 1024)) * 100}%)`
                               }}
                             />
                             <div className="flex justify-between text-sm mt-2">
-                              <span className="text-gray-400">0 B</span>
+                              <span className="text-gray-400">1 KB</span>
                               <span className="text-primary font-bold text-base">{formatSize(formData.previewSizeBytes)}</span>
-                              <span className="text-gray-400">{formatSize(totalSizeBytes || 10 * 1024 * 1024)}</span>
+                              <span className="text-gray-400">3 KB</span>
                             </div>
                           </div>
 
