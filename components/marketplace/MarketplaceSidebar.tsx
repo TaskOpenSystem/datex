@@ -7,7 +7,7 @@ import { useCurrentAccount, useDisconnectWallet, ConnectButton, useSuiClient } f
 import { useQuery } from "@tanstack/react-query";
 import { useMarketplaceFilterContext } from "@/contexts/MarketplaceFilterContext";
 
-const WAL_COIN_TYPE = "0x9f992cc2430a1f442ca7a5ca7638169f5d5c00e0ebc3977a65e9ac6e497fe5ef::wal::WAL";
+const WAL_COIN_TYPE = "0x8270feb7375eee355e64fdb69c50abb6b5f9393a722883c1cf45f8e26048810a::wal::WAL";
 
 export default function MarketplaceSidebar() {
   const pathname = usePathname();
@@ -17,7 +17,7 @@ export default function MarketplaceSidebar() {
   const account = useCurrentAccount();
   const { mutate: disconnect } = useDisconnectWallet();
   const suiClient = useSuiClient();
-  
+
   // Copy address state
   const [copied, setCopied] = useState(false);
 
@@ -373,7 +373,7 @@ export default function MarketplaceSidebar() {
                   account_balance_wallet
                 </span>
               </div>
-              <div 
+              <div
                 className="flex flex-col flex-1 min-w-0 cursor-pointer group"
                 onClick={handleCopyAddress}
                 title="Click to copy address"
