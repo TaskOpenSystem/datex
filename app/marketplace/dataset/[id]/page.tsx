@@ -12,7 +12,7 @@ import confetti from 'canvas-confetti';
 export default function DatasetDetailPage() {
   const params = useParams();
   const id = params.id as string;
-  
+
   const account = useCurrentAccount();
   const { data: listing, isLoading } = useListing(id);
   const { data: balance } = useAccountBalance();
@@ -24,6 +24,7 @@ export default function DatasetDetailPage() {
   const [isPurchasedState, setIsPurchasedState] = useState(false);
   const [purchaseTxDigest, setPurchaseTxDigest] = useState('');
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Check if already purchased from blockchain data
   const existingPurchase = useMemo(() => {
@@ -37,37 +38,13 @@ export default function DatasetDetailPage() {
   const isOwner = listing && account?.address === listing.seller;
 
   const fireConfetti = () => {
-    // First burst
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
-    
-    // Side bursts
+    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     setTimeout(() => {
-      confetti({
-        particleCount: 50,
-        angle: 60,
-        spread: 55,
-        origin: { x: 0 }
-      });
-      confetti({
-        particleCount: 50,
-        angle: 120,
-        spread: 55,
-        origin: { x: 1 }
-      });
+      confetti({ particleCount: 50, angle: 60, spread: 55, origin: { x: 0 } });
+      confetti({ particleCount: 50, angle: 120, spread: 55, origin: { x: 1 } });
     }, 150);
-    
-    // Final celebration
     setTimeout(() => {
-      confetti({
-        particleCount: 100,
-        spread: 100,
-        origin: { y: 0.6 },
-        colors: ['#ccff00', '#3B82F6', '#FF5C00', '#9747FF']
-      });
+      confetti({ particleCount: 100, spread: 100, origin: { y: 0.6 }, colors: ['#ccff00', '#3B82F6', '#FF5C00', '#9747FF'] });
     }, 300);
   };
 
@@ -78,7 +55,7 @@ export default function DatasetDetailPage() {
     }
     setPurchaseError(null);
     purchase(
-      listing, 
+      listing,
       (result) => {
         setIsPurchasedState(true);
         setPurchaseTxDigest(result.digest);
@@ -96,13 +73,9 @@ export default function DatasetDetailPage() {
     );
   };
 
-  const [isDownloading, setIsDownloading] = useState(false);
-
   const handleDownloadClick = async () => {
     if (!account || !listing || !isPurchased) return;
-    
     setIsDownloading(true);
-    
     try {
       const payload = {
         dataset_id: listing.id,
@@ -112,25 +85,15 @@ export default function DatasetDetailPage() {
         mime_type: listing.mimeType || 'application/octet-stream',
         file_name: listing.fileName || 'data.bin',
       };
-      
-      console.log('=== DOWNLOAD REQUEST ===');
-      console.log('Payload:', JSON.stringify(payload, null, 2));
-      
       const response = await fetch('/api/nautilus/download', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Error response:', errorData);
         throw new Error(errorData.error || `Download failed: ${response.status}`);
       }
-
-      // Get the blob and trigger download
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -140,10 +103,8 @@ export default function DatasetDetailPage() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
-      console.log('=== DOWNLOAD SUCCESS ===');
     } catch (error) {
-      console.error('=== DOWNLOAD ERROR ===', error);
+      console.error('Download error:', error);
       alert('Failed to download. Please try again.');
     } finally {
       setIsDownloading(false);
@@ -186,8 +147,8 @@ export default function DatasetDetailPage() {
       { version: 'v1.0', date: 'Sep 15, 2024', isCurrent: false },
     ],
     reviews: [
-      { id: 'r1', user: 'CryptoWhale_99', initials: 'CW', rating: 5, date: '2 days ago', comment: 'Extremely high quality data. The JSON formatting is clean and required zero cleanup before ingestion into our analytics pipeline. Worth every SUI.', bgColor: 'bg-blue-500' },
-      { id: 'r2', user: 'AlphaLab Research', initials: 'AL', rating: 4, date: '5 days ago', comment: 'Solid dataset. The consumer behavior section is particularly detailed. Would recommend for DeFi analysis.', bgColor: 'bg-primary' },
+      { id: 'r1', user: 'CryptoWhale_99', initials: 'CW', rating: 5, date: '2 days ago', comment: 'Extremely high quality data. Worth every SUI.', bgColor: 'bg-blue-500' },
+      { id: 'r2', user: 'AlphaLab Research', initials: 'AL', rating: 4, date: '5 days ago', comment: 'Solid dataset. Would recommend for DeFi analysis.', bgColor: 'bg-primary' },
     ],
     features: ['Verified on-chain data', 'Encrypted with Seal Protocol', 'Stored on Walrus'],
   };
@@ -200,7 +161,7 @@ export default function DatasetDetailPage() {
           <span className="material-symbols-outlined">arrow_back</span>
           Back to Marketplace
         </Link>
-        
+
         <div className="flex flex-col gap-2 mt-4">
           <div className="flex gap-2 flex-wrap">
             <span className="inline-flex items-center gap-1 rounded-full border-2 border-ink bg-white px-3 py-1 text-xs font-black uppercase tracking-wider shadow-sm text-ink">
@@ -216,13 +177,19 @@ export default function DatasetDetailPage() {
                 Your Listing
               </span>
             )}
+            {isPurchased && !isOwner && (
+              <span className="inline-flex items-center gap-1 rounded-full border-2 border-green-500 bg-green-500/10 px-3 py-1 text-xs font-black uppercase tracking-wider text-green-600">
+                <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                Purchased
+              </span>
+            )}
           </div>
           <h2 className="text-3xl font-black leading-tight text-ink">{listing.name}</h2>
           <p className="text-sm font-bold text-ink opacity-80">Updated: {dummyData.updatedAt}</p>
         </div>
-        
+
         <hr className="border-t-2 border-ink border-dashed opacity-50" />
-        
+
         <div className="grid grid-cols-1 gap-4">
           <div className="flex items-center justify-between p-4 bg-white border-2 border-ink rounded-xl shadow-hard-sm">
             <span className="text-sm font-bold text-gray-500 uppercase">Storage Size</span>
@@ -244,14 +211,14 @@ export default function DatasetDetailPage() {
             <span className="text-xl font-black text-ink">{listing.mimeType || dummyData.formats.join(' / ')}</span>
           </div>
         </div>
-        
+
         <div className="mt-auto flex flex-col gap-4">
           <div className="flex flex-col">
             <span className="text-sm font-bold uppercase tracking-widest text-ink opacity-60">Current Price</span>
             <span className="text-5xl font-black tracking-tighter text-ink">{formatPrice(listing.price)}</span>
             <span className="text-sm font-bold text-ink opacity-60">≈ ${(Number(listing.price) / 1e9 * 1.25).toFixed(2)} USD</span>
           </div>
-          
+
           {isOwner ? (
             <div className="bg-white/50 border-2 border-ink rounded-xl p-4">
               <p className="font-bold text-ink flex items-center gap-2">
@@ -260,8 +227,8 @@ export default function DatasetDetailPage() {
               </p>
             </div>
           ) : isPurchased ? (
-            <button 
-              onClick={handleDownloadClick} 
+            <button
+              onClick={handleDownloadClick}
               disabled={isDownloading}
               className="group w-full rounded-xl border-2 border-ink bg-ink py-4 text-white shadow-hard transition-all hover:-translate-y-1 hover:bg-primary hover:text-ink disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
             >
@@ -283,9 +250,15 @@ export default function DatasetDetailPage() {
             <button onClick={() => setIsBuyModalOpen(true)} disabled={isPurchasing || !account} className="group w-full rounded-xl border-2 border-ink bg-ink py-4 text-white shadow-hard transition-all hover:-translate-y-1 hover:bg-primary hover:text-ink disabled:opacity-50 disabled:cursor-not-allowed">
               <div className="flex items-center justify-center gap-3">
                 {isPurchasing ? (
-                  <><span className="material-symbols-outlined text-2xl animate-spin">sync</span><span className="text-xl font-black uppercase tracking-wide">Processing...</span></>
+                  <>
+                    <span className="material-symbols-outlined text-2xl animate-spin">sync</span>
+                    <span className="text-xl font-black uppercase tracking-wide">Processing...</span>
+                  </>
                 ) : (
-                  <><span className="material-symbols-outlined text-2xl group-hover:animate-bounce">shopping_cart_checkout</span><span className="text-xl font-black uppercase tracking-wide">Buy Now</span></>
+                  <>
+                    <span className="material-symbols-outlined text-2xl group-hover:animate-bounce">shopping_cart_checkout</span>
+                    <span className="text-xl font-black uppercase tracking-wide">Buy Now</span>
+                  </>
                 )}
               </div>
             </button>
@@ -297,28 +270,16 @@ export default function DatasetDetailPage() {
 
       {/* RIGHT PANEL */}
       <div className="flex-1 bg-white overflow-y-auto relative">
-        <div className="absolute right-0 top-0 h-64 w-64 bg-gray-50 rounded-bl-[100px] -z-0"></div>
+        <div className="absolute right-0 top-0 h-64 w-64 bg-gray-50 rounded-bl-[100px] z-0"></div>
         <div className="max-w-5xl mx-auto p-6 lg:p-12 flex flex-col gap-12 relative z-10">
-          
           {/* Hero Image */}
           <section>
-            <div className="relative w-full aspect-[2/1] rounded-2xl border-2 border-ink overflow-hidden shadow-hard-lg group">
+            <div className="relative w-full aspect-2/1 rounded-2xl border-2 border-ink overflow-hidden shadow-hard-lg group">
               {listing.imageUrl ? (
-                <img 
-                  src={listing.imageUrl} 
-                  alt={listing.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
+                <img src={listing.imageUrl} alt={listing.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
               ) : (
                 <>
-                  <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900" />
-                  <div className="absolute inset-0 opacity-20">
-                    <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                      <path d="M0,50 Q25,30 50,50 T100,50" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
-                      <path d="M0,60 Q25,40 50,60 T100,60" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
-                      <path d="M0,40 Q25,20 50,40 T100,40" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
-                    </svg>
-                  </div>
+                  <div className="absolute inset-0 bg-linear-to-br from-gray-800 to-gray-900" />
                   <div className="absolute inset-0 flex items-center justify-center">
                     <span className="material-symbols-outlined text-[120px] text-gray-600">dataset</span>
                   </div>
@@ -332,8 +293,8 @@ export default function DatasetDetailPage() {
                 <button className="h-10 w-10 bg-white border-2 border-ink rounded-lg flex items-center justify-center hover:bg-accent-lime transition-colors shadow-hard-sm text-ink">
                   <span className="material-symbols-outlined">fullscreen</span>
                 </button>
-                <button onClick={handleDownloadClick} className="h-10 w-10 bg-white border-2 border-ink rounded-lg flex items-center justify-center hover:bg-accent-lime transition-colors shadow-hard-sm text-ink">
-                  <span className="material-symbols-outlined">download</span>
+                <button onClick={handleDownloadClick} disabled={!isPurchased || isDownloading} className="h-10 w-10 bg-white border-2 border-ink rounded-lg flex items-center justify-center hover:bg-accent-lime transition-colors shadow-hard-sm text-ink disabled:opacity-50">
+                  <span className={`material-symbols-outlined ${isDownloading ? 'animate-spin' : ''}`}>{isDownloading ? 'sync' : 'download'}</span>
                 </button>
               </div>
             </div>
@@ -352,7 +313,7 @@ export default function DatasetDetailPage() {
                   {dummyData.features.map((f, i) => <li key={i}>{f}</li>)}
                 </ul>
               </div>
-              
+
               {/* IDs Section */}
               <div className="flex flex-col gap-3 p-4 bg-gray-50 rounded-xl border border-gray-200">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -360,9 +321,6 @@ export default function DatasetDetailPage() {
                   <code className="text-xs font-mono text-ink bg-white px-2 py-1 rounded border">{listing.id.slice(0, 16)}...{listing.id.slice(-8)}</code>
                   <a href={`https://suiscan.xyz/testnet/object/${listing.id}`} target="_blank" rel="noopener noreferrer" className="h-6 w-6 rounded bg-white hover:bg-gray-100 flex items-center justify-center border" title="SuiScan">
                     <svg className="w-3.5 h-3.5" viewBox="0 0 234 234" fill="none"><path d="M0 100C0 65 0 47.5 6.8 33C12.7 21.3 22.3 11.8 34 5.8C47.3 0 64.7 0 99.5 0H133.8C168.6 0 186 0 199.3 6.8C211 12.8 220.6 22.3 226.5 34C233.3 47.4 233.3 64.9 233.3 99.8V134.2C233.3 169.1 233.3 186.6 226.5 199.9C220.6 211.6 211 221.2 199.3 227.2C186 234 168.6 234 133.8 234H99.5C64.7 234 47.3 234 34 227.2C22.3 221.2 12.7 211.7 6.8 200C0 186.6 0 169.1 0 134.2V100Z" fill="#4C72FF"/><path d="M177 87C178.7 85.9 180.8 85.6 182.4 86.3C183.2 86.6 183.9 87.1 184.3 87.8C184.7 88.5 185 89.4 184.9 90.2L181.4 148.2C181 155.7 178.2 163.4 173.6 170.4C160.4 190.4 133.2 200 112.8 191.8C107.1 189.5 102.5 186 99.2 181.7C100 181.8 100.8 181.7 101.5 181.7C122.4 181.7 143.5 170.3 155.1 152.7C160.7 144.1 164 134.7 164.6 125.6L166.5 93.3L177 87Z" fill="white"/><path d="M150 63.6C151.7 62.5 153.8 62.3 155.5 62.9C156.3 63.3 156.9 63.8 157.4 64.5C157.9 65.2 158.1 66.1 158 66.9L154.5 125C154 132.5 151.3 140.1 146.7 147.1C133.5 167.2 106.3 176.7 85.9 168.5C80.1 166.2 75.6 162.7 72.3 158.4C73.1 158.4 73.9 158.4 74.6 158.4C95.6 158.4 116.6 147.1 128.2 129.4C133.9 120.8 137.1 111.4 137.7 102.3L139.6 70L150 63.6Z" fill="white"/><path d="M123 40.3C124.7 39.2 126.8 39 128.5 39.6C129.2 39.9 129.9 40.5 130.3 41.2C130.8 41.9 131 42.7 130.9 43.5L127.4 101.6C127 109.1 124.2 116.7 119.6 123.7C106.4 143.8 79.2 153.3 58.8 145.1C38.5 136.9 32.7 114 45.9 93.9C50.5 86.9 57.1 80.7 64.6 76.1L123 40.3Z" fill="white"/></svg>
-                  </a>
-                  <a href={`https://testnet.suivision.xyz/object/${listing.id}`} target="_blank" rel="noopener noreferrer" className="h-6 w-6 rounded bg-white hover:bg-gray-100 flex items-center justify-center border" title="SuiVision">
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none"><path d="M0 6C0 2.68629 2.68629 0 6 0H18C21.3137 0 24 2.68629 24 6V18C24 21.3137 21.3137 24 18 24H6C2.68629 24 0 21.3137 0 18V6Z" fill="#4DA2FF"/><path d="M6.99748 5.28362L6.99748 11.0148L8.71768 12.0008L6.99731 12.987L6.99731 18.7182L11.9972 21.584L16.9971 18.7182L16.9971 12.9866L15.2769 12.0007L16.9973 11.0147L16.9973 5.28308L11.997 2.41732L6.99748 5.28362ZM11.6464 3.42366L11.6464 7.94789L7.69961 10.2105L7.69961 5.68623L11.6464 3.42366ZM12.3482 20.5781L12.3482 16.0535L16.2954 13.7912L16.2954 18.3159L12.3482 20.5781ZM15.9441 13.1879L11.9973 15.4501L8.05048 13.1879L9.41994 12.4031L11.9973 13.8803L14.575 12.4031L15.9441 13.1879ZM11.9973 10.1208L9.41964 11.5982L8.05048 10.8134L11.9973 8.55113L15.9445 10.8134L14.575 11.5982L11.9973 10.1208Z" fill="white"/></svg>
                   </a>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -372,7 +330,6 @@ export default function DatasetDetailPage() {
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="8" fill="#36B5A8"/><ellipse cx="12" cy="22" rx="6" ry="2" fill="#36B5A8" opacity="0.5"/><circle cx="9" cy="8" r="1.5" fill="white"/><circle cx="15" cy="8" r="1.5" fill="white"/><path d="M9 13C9 13 10.5 15 12 15C13.5 15 15 13 15 13" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
                   </a>
                 </div>
-                {/* Purchase TX - only show if purchased */}
                 {isPurchased && displayTxDigest && (
                   <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-gray-200 mt-1">
                     <span className="text-xs font-bold text-green-600 uppercase w-20 flex items-center gap-1">
@@ -428,9 +385,7 @@ export default function DatasetDetailPage() {
                 <div key={review.id} className="rounded-xl border-2 border-ink bg-white p-6 shadow-hard-sm hover:shadow-hard transition-shadow">
                   <div className="flex justify-between items-start mb-4">
                     <div className="flex items-center gap-3">
-                      <div className={`h-10 w-10 rounded-full border-2 border-ink flex items-center justify-center font-bold text-white shadow-sm ${review.bgColor}`}>
-                        {review.initials}
-                      </div>
+                      <div className={`h-10 w-10 rounded-full border-2 border-ink flex items-center justify-center font-bold text-white shadow-sm ${review.bgColor}`}>{review.initials}</div>
                       <div className="flex flex-col">
                         <span className="font-bold text-sm text-ink">{review.user}</span>
                         <div className="flex text-accent-orange">
@@ -462,7 +417,7 @@ export default function DatasetDetailPage() {
       {isBuyModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-md bg-white rounded-2xl border-2 border-ink shadow-hard-lg p-6 relative">
-            <button onClick={() => setIsBuyModalOpen(false)} className="absolute top-4 right-4 h-8 w-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+            <button onClick={() => { setIsBuyModalOpen(false); setPurchaseError(null); }} className="absolute top-4 right-4 h-8 w-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
               <span className="material-symbols-outlined text-ink">close</span>
             </button>
             <div className="flex flex-col gap-4">
@@ -501,7 +456,7 @@ export default function DatasetDetailPage() {
         </div>
       )}
 
-      {/* Preview Modal with Decryption Animation */}
+      {/* Preview Modal */}
       <DecryptionPreviewModal
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
@@ -511,7 +466,6 @@ export default function DatasetDetailPage() {
         previewBytes={Number(listing.previewSize)}
         requesterAddress={account?.address || ''}
         mimeType={listing.mimeType || 'application/octet-stream'}
-        fileName={listing.fileName || 'download'}
       />
     </div>
   );
