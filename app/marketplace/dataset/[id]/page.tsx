@@ -205,7 +205,6 @@ export default function DatasetDetailPage() {
       name: sellerSuiNSName || shortenAddress(listing.seller),
       initials: listing.seller.slice(2, 4).toUpperCase(),
       verified: true,
-      hasSuiNS: !!sellerSuiNSName,
     },
     versionHistory: [
       { version: "v1.2", date: "Oct 12, 2024", isCurrent: true },
@@ -615,23 +614,13 @@ export default function DatasetDetailPage() {
                     {dummyData.publisher.initials}
                   </div>
                   <div className="flex flex-col">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold leading-none text-white">
-                        {isLoadingSuiNS ? (
-                          <span className="animate-pulse">Loading...</span>
-                        ) : (
-                          dummyData.publisher.name
-                        )}
-                      </span>
-                      {dummyData.publisher.hasSuiNS && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold text-white">
-                          <span className="material-symbols-outlined text-[12px]">
-                            verified
-                          </span>
-                          SuiNS
-                        </span>
+                    <span className="font-bold leading-none text-white">
+                      {isLoadingSuiNS ? (
+                        <span className="animate-pulse">Loading...</span>
+                      ) : (
+                        dummyData.publisher.name
                       )}
-                    </div>
+                    </span>
                     <span className="text-xs font-bold text-white/80 mt-1">
                       {dummyData.publisher.verified
                         ? "Verified Publisher"
