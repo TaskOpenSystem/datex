@@ -385,8 +385,66 @@ datex/
 │   ├── seal.ts                  # Seal encryption utilities
 │   └── walrus-payment.ts        # Walrus payment integration
 ├── types/                       # TypeScript type definitions
+├── datex-nautilus/              # 🔒 Nautilus TEE Server (Git Submodule)
 └── data_marketplace.move        # Move smart contract
 ```
+
+---
+
+## 🔒 Datex-Nautilus Subproject
+
+The `datex-nautilus` directory is a Git submodule containing the Nautilus TEE (Trusted Execution Environment) server implementation for secure data preview and download.
+
+### Repository
+
+- **GitHub**: [TaskOpenSystem/datex-nautilus](https://github.com/TaskOpenSystem/datex-nautilus)
+
+### Overview
+
+Datex-Nautilus is built on the [Nautilus framework](https://docs.sui.io/concepts/cryptography/nautilus) for secure and verifiable off-chain computation on Sui. It provides:
+
+- **Reproducible Builds**: AWS Nitro Enclave with verifiable PCR values
+- **Secure Preview**: Decrypt and return partial data without exposing full dataset
+- **Purchase Verification**: Verify on-chain purchase receipts before full download
+- **TEE Attestation**: Hardware-based isolation with cryptographic proof
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    NAUTILUS TEE SERVER                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │                 AWS NITRO ENCLAVE                        │   │
+│  │                                                          │   │
+│  │  • PCR Attestation (PCR0, PCR1, PCR2)                   │   │
+│  │  • Ephemeral Key Generation                              │   │
+│  │  • Seal Protocol Integration                             │   │
+│  │  • Walrus Blob Fetching                                  │   │
+│  │  • Secure Decryption                                     │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  Endpoints:                                                     │
+│  • POST /preview  - Preview partial decrypted data              │
+│  • POST /download - Full download (requires purchase proof)     │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Setup Submodule
+
+```bash
+# Clone with submodules
+git clone --recurse-submodules https://github.com/Vietnam-Sui-Builders/datex.git
+
+# Or initialize submodule after clone
+git submodule update --init --recursive
+```
+
+### Build & Deploy
+
+See [datex-nautilus/README.md](./datex-nautilus/README.md) for detailed build and deployment instructions.
 
 ---
 
