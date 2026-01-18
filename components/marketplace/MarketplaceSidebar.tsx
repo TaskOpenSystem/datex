@@ -162,19 +162,12 @@ export default function MarketplaceSidebar() {
     <aside className="hidden lg:flex w-72 shrink-0 flex-col border-r-2 border-ink bg-white h-screen sticky top-0 z-20 overflow-y-auto">
       <div className="flex flex-col gap-6 p-6">
         {/* Brand */}
-        <Link href="/" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-ink bg-primary shadow-hard-sm">
-            <span
-              className="material-symbols-outlined text-white"
-              style={{ fontSize: "28px" }}
-            >
-              dataset
-            </span>
-          </div>
+        <Link href="/" className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary text-3xl">token</span>
           <div className="flex flex-col">
-            <h1 className="text-xl font-bold leading-none tracking-tight">
-              DATEX
-            </h1>
+            <span className="font-display text-2xl tracking-wide uppercase text-ink">
+              DatEx
+            </span>
             <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
               Marketplace
             </p>
