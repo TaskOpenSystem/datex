@@ -165,7 +165,7 @@ export default function MarketplaceSidebar() {
           </div>
           <div className="flex flex-col">
             <h1 className="text-xl font-bold leading-none tracking-tight">
-              SUI DATA
+              DATEX
             </h1>
             <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
               Marketplace
