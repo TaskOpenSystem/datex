@@ -98,7 +98,7 @@ export default function MyDataPage() {
   const [imagePreview, setImagePreview] = useState<string>('');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
-  const DEFAULT_IMAGE_URL = 'https://freeimage.host/i/fUOgsUu';
+  const DEFAULT_IMAGE_URL = 'https://iili.io/fUOriLN.webp';
 
   const flowRef = useRef<Awaited<ReturnType<typeof createFlow>> | null>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -1363,7 +1363,7 @@ export default function MyDataPage() {
                 </div>
 
                 {/* Right Panel - Transaction Logs */}
-                <div className="w-80 border-l-2 border-ink bg-gray-50 flex flex-col h-full">
+                <div className="w-80 border-l-2 border-ink bg-gray-50 flex flex-col min-h-0">
                   <div className="p-4 border-b border-gray-200 shrink-0">
                     <h3 className="font-bold uppercase text-sm text-ink flex items-center gap-2">
                       <span className="material-symbols-outlined">terminal</span>
@@ -1371,7 +1371,7 @@ export default function MyDataPage() {
                     </h3>
                   </div>
 
-                  <div ref={logContainerRef} className="flex-1 overflow-y-auto p-4 min-h-0">
+                  <div ref={logContainerRef} className="flex-1 overflow-y-auto p-4 min-h-0 max-h-[calc(90vh-200px)]">
                     {logs.length === 0 ? (
                       <p className="text-sm text-gray-400 text-center py-8">
                         No transactions yet.<br />
