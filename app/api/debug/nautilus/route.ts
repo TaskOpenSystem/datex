@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { dataset_id, blob_id, payment_tx_digest, buyer_address } = body;
+    const { dataset_id, blob_id, preview_bytes, requester_address, mime_type, file_name } = body;
 
     if (!dataset_id || !blob_id) {
       return NextResponse.json(
@@ -20,9 +20,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const payload: Record<string, string> = { dataset_id, blob_id };
-    if (payment_tx_digest) payload.payment_tx_digest = payment_tx_digest;
-    if (buyer_address) payload.buyer_address = buyer_address;
+    const payload: Record<string, string | number> = { 
+      dataset_id, 
+      blob_id,
+      preview_bytes: preview_bytes || 1024,
+      requester_address: requester_address || '',
+      mime_type: mime_type || 'application/octet-stream',
+      file_name: file_name || 'download',
+    };
+
+    console.log('🚀 [Nautilus API] Calling:', `${nautilusServer}/process_data`);
+    console.log('🚀 [Nautilus API] Payload:', JSON.stringify({ payload }, null, 2));
 
     const response = await fetch(`${nautilusServer}/process_data`, {
       method: 'POST',
@@ -31,6 +39,8 @@ export async function POST(request: NextRequest) {
     });
 
     const data = await response.json();
+    console.log('📥 [Nautilus API] Response status:', response.status);
+    // console.log('📥 [Nautilus API] Response data:', JSON.stringify(data, null, 2));
 
     if (!response.ok) {
       return NextResponse.json(
@@ -41,6 +51,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error: any) {
+    console.error('❌ [Nautilus API] Error:', error.message);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

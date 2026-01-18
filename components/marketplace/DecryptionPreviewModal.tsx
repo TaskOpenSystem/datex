@@ -9,6 +9,10 @@ interface DecryptionPreviewModalProps {
   datasetId: string;
   blobId: string;
   datasetName: string;
+  previewBytes?: number;
+  requesterAddress?: string;
+  mimeType?: string;
+  fileName?: string;
 }
 
 type Phase = 'uploading' | 'processing' | 'decrypting' | 'revealed' | 'error';
@@ -19,6 +23,10 @@ export default function DecryptionPreviewModal({
   datasetId,
   blobId,
   datasetName,
+  previewBytes = 100,
+  requesterAddress = '',
+  mimeType = 'application/octet-stream',
+  fileName = 'download',
 }: DecryptionPreviewModalProps) {
   const [phase, setPhase] = useState<Phase>('uploading');
   const [previewData, setPreviewData] = useState<string>('');
@@ -32,6 +40,7 @@ export default function DecryptionPreviewModal({
   const revealedRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
   const scanLineRef = useRef<HTMLDivElement>(null);
+  const fetchInitiatedRef = useRef(false);
 
   const generateCipherText = (length: number): string => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
@@ -54,6 +63,7 @@ export default function DecryptionPreviewModal({
       setRevealedText('');
       setError('');
       setUploadProgress(0);
+      fetchInitiatedRef.current = false; // Reset fetch flag
     }
   }, [isOpen]);
 
@@ -96,53 +106,94 @@ export default function DecryptionPreviewModal({
   // Processing phase - fetch from Nautilus via API route (avoid CORS)
   useEffect(() => {
     if (!isOpen || phase !== 'processing') return;
+    if (fetchInitiatedRef.current) {
+      console.log('⚠️ Fetch already initiated, skipping');
+      return;
+    }
+    
+    fetchInitiatedRef.current = true;
+    console.log('🔄 Starting fetch process...');
+
+    const controller = new AbortController();
 
     const fetchPreview = async () => {
       try {
+        const payload = { 
+          dataset_id: datasetId, 
+          blob_id: blobId,
+          preview_bytes: previewBytes,
+          requester_address: requesterAddress,
+          mime_type: mimeType,
+          file_name: fileName,
+        };
+        
+        console.log('🚀 Calling Nautilus via API route');
+        console.log('🚀 Payload:', JSON.stringify({ payload }, null, 2));
+        
+        // Use API route to avoid CORS issues
         const res = await fetch('/api/debug/nautilus', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            dataset_id: datasetId, 
-            blob_id: blobId 
-          }),
+          body: JSON.stringify(payload),
+          signal: controller.signal,
         });
         
         const data = await res.json();
+        console.log('📥 Nautilus response:', JSON.stringify(data, null, 2));
+        console.log('📥 Response keys:', Object.keys(data));
+        console.log('📥 data.response:', data?.response);
+        console.log('📥 data.response.data:', data?.response?.data);
+        console.log('📥 preview_data exists:', !!data?.response?.data?.preview_data);
         
         if (!res.ok) {
           throw new Error(data.error || 'Failed to fetch preview');
         }
         
-        if (data?.response?.data?.preview_data) {
-          const decoded = decodeBase64(data.response.data.preview_data);
+        // Handle response structure from Nautilus
+        const previewDataBase64 = data?.response?.data?.preview_data;
+        if (previewDataBase64) {
+          const decoded = decodeBase64(previewDataBase64);
+          console.log('✅ Decoded preview data length:', decoded.length);
+          console.log('✅ First 200 chars:', decoded.substring(0, 200));
           setPreviewData(decoded);
           setTimeout(() => setPhase('decrypting'), 500);
         } else {
+          console.error('❌ No preview_data in response. Full response:', data);
           throw new Error('No preview data available');
         }
       } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          console.log('🛑 Fetch aborted');
+          return;
+        }
         const message = err instanceof Error ? err.message : 'Failed to decrypt';
+        console.error('❌ Fetch error:', message);
         setError(message);
         setPhase('error');
       }
     };
 
     const timer = setTimeout(fetchPreview, 2500);
-    return () => clearTimeout(timer);
-  }, [isOpen, phase, datasetId, blobId]);
+    
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [isOpen, phase, datasetId, blobId, previewBytes, requesterAddress, mimeType, fileName]);
 
   // Decryption animation
   useEffect(() => {
     if (!isOpen || phase !== 'decrypting' || !previewData) return;
 
-    const lines = previewData.split('\n').slice(0, 15);
+    // Clean BOM and split into lines, limit to 20 lines
+    const cleanData = previewData.replace(/^\ufeff/, '');
+    const lines = cleanData.split('\n').slice(0, 20);
     const totalChars = lines.join('\n').length;
     let currentIndex = 0;
 
     if (cipherTextRef.current) {
       cipherTextRef.current.innerHTML = lines.map(line => 
-        `<div class="cipher-line">${generateCipherText(line.length || 20)}</div>`
+        `<div class="cipher-line">${generateCipherText(Math.min(line.length, 100) || 20)}</div>`
       ).join('');
     }
 
@@ -168,17 +219,17 @@ export default function DecryptionPreviewModal({
             return `<div class="cipher-line opacity-0">${line}</div>`;
           } else if (currentIndex >= lineStart) {
             const revealedPart = line.slice(0, currentIndex - lineStart + 1);
-            const cipherPart = generateCipherText(line.length - revealedPart.length);
+            const cipherPart = generateCipherText(Math.min(line.length - revealedPart.length, 100));
             return `<div class="cipher-line"><span class="opacity-0">${revealedPart}</span><span class="text-accent-lime/40">${cipherPart}</span></div>`;
           } else {
-            return `<div class="cipher-line text-accent-lime/40">${generateCipherText(line.length || 20)}</div>`;
+            return `<div class="cipher-line text-accent-lime/40">${generateCipherText(Math.min(line.length, 100) || 20)}</div>`;
           }
         });
         cipherTextRef.current.innerHTML = cipherLines.join('');
       }
 
-      currentIndex += Math.floor(Math.random() * 3) + 1; // 1-3 chars at a time
-    }, 20); // 20ms intervals
+      currentIndex += Math.floor(Math.random() * 5) + 3; // 3-7 chars at a time (faster)
+    }, 15); // 15ms intervals (faster)
 
     return () => clearInterval(revealInterval);
   }, [isOpen, phase, previewData]);
@@ -195,8 +246,8 @@ export default function DecryptionPreviewModal({
       case 'uploading':
         return {
           icon: 'cloud_upload',
-          title: 'Uploading to TEE Server',
-          subtitle: 'Sending encrypted data to Nautilus TEE...',
+          title: 'Sending Dataset ID and BlobID to Nautilus compute in TEE',
+          subtitle: 'Connecting to Nautilus TEE server...',
           color: 'text-blue-400',
         };
       case 'processing':
