@@ -1,0 +1,3 @@
+[submodule "datex-nautilus"]
+	path = datex-nautilus
+	url = https://github.com/TaskOpenSystem/datex-nautilus
