@@ -34,7 +34,7 @@ export function CreateListingForm({ blobId, encryptedObject, totalSizeBytes, ini
   const [description, setDescription] = useState(initialFormData?.description ?? '');
   const [priceSUI, setPriceSUI] = useState(initialFormData?.priceSUI ?? '');
   const [previewSizeBytes, setPreviewSizeBytes] = useState(initialFormData?.previewSizeBytes ?? Math.min(1024 * 1024, totalSizeBytes));
-  const [imageUrl, setImageUrl] = useState(initialFormData?.imageUrl ?? 'https://freeimage.host/i/fUOgsUu');
+  const [imageUrl, setImageUrl] = useState(initialFormData?.imageUrl ?? 'https://iili.io/fUOriLN.webp');
   const [mimeType] = useState(initialFormData?.mimeType ?? 'application/octet-stream');
   const [fileName] = useState(initialFormData?.fileName ?? 'unknown');
   const [contentType, setContentType] = useState(initialFormData?.contentType ?? initialFormData?.mimeType ?? 'application/octet-stream');

@@ -40,17 +40,103 @@ export default function DecryptionPreviewModal({
 
   const decodeBase64 = (base64: string): string => {
     try {
-      return atob(base64);
+      // Decode base64 to binary string, then convert to UTF-8
+      const binaryString = atob(base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      // Decode as UTF-8
+      const decoder = new TextDecoder('utf-8', { fatal: false });
+      const decoded = decoder.decode(bytes);
+      
+      // Check if it's binary data - look for replacement character (�) which indicates invalid UTF-8
+      // Also check for null bytes and other control characters
+      const replacementChars = (decoded.match(/\uFFFD/g) || []).length;
+      const nullBytes = (decoded.match(/\x00/g) || []).length;
+      
+      // If too many replacement chars or null bytes, it's likely binary
+      if (replacementChars > decoded.length * 0.05 || nullBytes > 5) {
+        return '[Binary data - cannot display as text]';
+      }
+      
+      // Clean up any remaining control characters except newline, tab, carriage return
+      const cleaned = decoded.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+      
+      return cleaned;
     } catch {
       return base64;
     }
   };
+
+  // Format CSV data as a nice table-like display
+  const formatPreviewData = (data: string): { formatted: string; type: 'csv' | 'json' | 'text' } => {
+    if (!data || data.startsWith('[Binary')) return { formatted: data, type: 'text' };
+    
+    const trimmed = data.trim();
+    
+    // Check if it's JSON
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+        (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return { formatted: JSON.stringify(parsed, null, 2), type: 'json' };
+      } catch {
+        // Not valid JSON, continue checking
+      }
+    }
+    
+    const lines = data.split('\n').filter(line => line.trim());
+    if (lines.length === 0) return { formatted: data, type: 'text' };
+    
+    // Check if it looks like CSV (has commas and consistent column count)
+    const firstLineCommas = (lines[0].match(/,/g) || []).length;
+    const isCSV = firstLineCommas > 0 && lines.slice(0, 5).every(line => {
+      const commas = (line.match(/,/g) || []).length;
+      return Math.abs(commas - firstLineCommas) <= 1; // Allow 1 comma difference
+    });
+    
+    if (isCSV) {
+      return { formatted: data, type: 'csv' };
+    }
+    
+    // Plain text
+    return { formatted: lines.slice(0, 20).join('\n'), type: 'text' };
+  };
+
+  // Parse CSV to rows
+  const parseCSV = (data: string): string[][] => {
+    const lines = data.split('\n').filter(line => line.trim());
+    return lines.slice(0, 15).map(line => {
+      const values: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      for (const char of line) {
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim());
+      return values;
+    });
+  };
+
+  const [dataType, setDataType] = useState<'csv' | 'json' | 'text'>('text');
+  const [formattedData, setFormattedData] = useState<string>('');
 
   // Reset state when modal closes
   useEffect(() => {
     if (!isOpen) {
       setPhase('uploading');
       setPreviewData('');
+      setFormattedData('');
+      setDataType('text');
       setRevealedText('');
       setError('');
       setUploadProgress(0);
@@ -116,7 +202,10 @@ export default function DecryptionPreviewModal({
         
         if (data?.response?.data?.preview_data) {
           const decoded = decodeBase64(data.response.data.preview_data);
+          const { formatted, type } = formatPreviewData(decoded);
           setPreviewData(decoded);
+          setFormattedData(formatted);
+          setDataType(type);
           setTimeout(() => setPhase('decrypting'), 500);
         } else {
           throw new Error('No preview data available');
@@ -379,21 +468,93 @@ export default function DecryptionPreviewModal({
                 </div>
               )}
 
-              <div className="relative h-full p-6 overflow-auto font-mono text-sm">
-                <div 
-                  ref={cipherTextRef}
-                  className="absolute inset-6 text-accent-lime/30 whitespace-pre-wrap break-all leading-relaxed pointer-events-none"
-                />
-                <div 
-                  ref={revealedRef}
-                  className="relative z-10 text-accent-lime whitespace-pre-wrap break-all leading-relaxed"
-                >
-                  {revealedText}
-                  {phase === 'decrypting' && (
+              {/* Decrypting animation */}
+              {phase === 'decrypting' && (
+                <div className="relative h-full p-6 overflow-auto font-mono text-sm">
+                  <div 
+                    ref={cipherTextRef}
+                    className="absolute inset-6 text-accent-lime/30 whitespace-pre-wrap break-all leading-relaxed pointer-events-none"
+                  />
+                  <div 
+                    ref={revealedRef}
+                    className="relative z-10 text-accent-lime whitespace-pre-wrap break-all leading-relaxed"
+                  >
+                    {revealedText}
                     <span className="inline-block w-2 h-4 bg-accent-lime ml-0.5 animate-pulse" />
+                  </div>
+                </div>
+              )}
+
+              {/* Revealed - formatted display */}
+              {phase === 'revealed' && (
+                <div className="relative h-full p-6 overflow-auto">
+                  {/* Data type badge */}
+                  <div className="absolute top-4 right-4 z-10">
+                    <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
+                      dataType === 'json' ? 'bg-yellow-500/20 text-yellow-400' :
+                      dataType === 'csv' ? 'bg-blue-500/20 text-blue-400' :
+                      'bg-gray-500/20 text-gray-400'
+                    }`}>
+                      {dataType}
+                    </span>
+                  </div>
+
+                  {/* CSV Table */}
+                  {dataType === 'csv' && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr>
+                            {parseCSV(previewData)[0]?.map((header, idx) => (
+                              <th key={idx} className="border border-accent-lime/30 bg-accent-lime/10 px-3 py-2 text-left text-accent-lime font-bold whitespace-nowrap">
+                                {header}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {parseCSV(previewData).slice(1).map((row, rowIdx) => (
+                            <tr key={rowIdx} className="hover:bg-accent-lime/5">
+                              {row.map((cell, cellIdx) => (
+                                <td key={cellIdx} className="border border-gray-700 px-3 py-2 text-gray-300 whitespace-nowrap">
+                                  {cell}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* JSON formatted */}
+                  {dataType === 'json' && (
+                    <pre className="font-mono text-sm text-accent-lime whitespace-pre-wrap leading-relaxed">
+                      {formattedData.split('\n').map((line, idx) => {
+                        // Syntax highlighting for JSON
+                        const highlighted = line
+                          .replace(/"([^"]+)":/g, '<span class="text-purple-400">"$1"</span>:')
+                          .replace(/: "([^"]+)"/g, ': <span class="text-yellow-400">"$1"</span>')
+                          .replace(/: (\d+)/g, ': <span class="text-blue-400">$1</span>')
+                          .replace(/: (true|false|null)/g, ': <span class="text-red-400">$1</span>');
+                        return (
+                          <div key={idx} dangerouslySetInnerHTML={{ __html: highlighted }} />
+                        );
+                      })}
+                    </pre>
+                  )}
+
+                  {/* Plain text */}
+                  {dataType === 'text' && (
+                    <div 
+                      ref={revealedRef}
+                      className="font-mono text-sm text-accent-lime whitespace-pre-wrap break-all leading-relaxed"
+                    >
+                      {formattedData}
+                    </div>
                   )}
                 </div>
-              </div>
+              )}
             </>
           )}
 
