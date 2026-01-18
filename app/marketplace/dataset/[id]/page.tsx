@@ -1,40 +1,38 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useMemo } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useCurrentAccount } from '@mysten/dapp-kit';
-import { useListing, useAccountBalance, usePurchaseDataset } from '@/hooks/useMarketplace';
+import { useListing, useAccountBalance, usePurchaseDataset, usePurchasedDatasets } from '@/hooks/useMarketplace';
 import { formatSize, formatPrice, shortenAddress } from '@/lib/marketplace';
 import DecryptionPreviewModal from '@/components/marketplace/DecryptionPreviewModal';
-import gsap from 'gsap';
 import confetti from 'canvas-confetti';
 
 export default function DatasetDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const id = params.id as string;
   
   const account = useCurrentAccount();
   const { data: listing, isLoading } = useListing(id);
   const { data: balance } = useAccountBalance();
   const { purchase, isPending: isPurchasing } = usePurchaseDataset();
+  const { data: purchases } = usePurchasedDatasets(account?.address);
 
   const [isBuyModalOpen, setIsBuyModalOpen] = useState(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
-  const [processingMode, setProcessingMode] = useState<'download' | 'preview' | null>(null);
-  const [isPurchased, setIsPurchased] = useState(false);
+  const [isPurchasedState, setIsPurchasedState] = useState(false);
   const [purchaseTxDigest, setPurchaseTxDigest] = useState('');
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
 
-  // Refs for animation
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const sealRef = useRef<HTMLDivElement>(null);
-  const textRef = useRef<HTMLHeadingElement>(null);
-  const subTextRef = useRef<HTMLParagraphElement>(null);
-  const progressRef = useRef<HTMLDivElement>(null);
-  const iconRef = useRef<HTMLSpanElement>(null);
-  const pathRef = useRef<SVGTextPathElement>(null);
+  // Check if already purchased from blockchain data
+  const existingPurchase = useMemo(() => {
+    if (!purchases || !id) return null;
+    return purchases.find(p => p.datasetId === id);
+  }, [purchases, id]);
+
+  const isPurchased = isPurchasedState || !!existingPurchase;
+  const displayTxDigest = purchaseTxDigest || existingPurchase?.txDigest || '';
 
   const isOwner = listing && account?.address === listing.seller;
 
@@ -82,7 +80,7 @@ export default function DatasetDetailPage() {
     purchase(
       listing, 
       (result) => {
-        setIsPurchased(true);
+        setIsPurchasedState(true);
         setPurchaseTxDigest(result.digest);
         setIsBuyModalOpen(false);
         fireConfetti();
@@ -98,55 +96,61 @@ export default function DatasetDetailPage() {
     );
   };
 
-  const handleDownloadClick = () => setProcessingMode('download');
-  const handlePreviewClick = () => setIsPreviewModalOpen(true);
+  const [isDownloading, setIsDownloading] = useState(false);
 
-  useEffect(() => {
-    if (processingMode && listing) {
-      const tl = gsap.timeline({
-        onComplete: () => {
-          setTimeout(() => {
-            const mode = processingMode;
-            setProcessingMode(null);
-            if (mode === 'download') alert(`Downloading ${listing.name}...`);
-            else alert(`Preview for ${listing.name} is ready!`);
-          }, 800);
-        }
+  const handleDownloadClick = async () => {
+    if (!account || !listing || !isPurchased) return;
+    
+    setIsDownloading(true);
+    
+    try {
+      const payload = {
+        dataset_id: listing.id,
+        blob_id: listing.blobId,
+        payment_tx_digest: displayTxDigest,
+        buyer_address: account.address,
+        mime_type: listing.mimeType || 'application/octet-stream',
+        file_name: listing.fileName || 'data.bin',
+      };
+      
+      console.log('=== DOWNLOAD REQUEST ===');
+      console.log('Payload:', JSON.stringify(payload, null, 2));
+      
+      const response = await fetch('/api/nautilus/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
       });
 
-      gsap.set(sealRef.current, { scale: 0.5, opacity: 0, rotation: 0 });
-      gsap.set(progressRef.current, { width: "0%" });
-      gsap.set(iconRef.current, { scale: 1, opacity: 1, color: "white" });
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        throw new Error(errorData.error || `Download failed: ${response.status}`);
+      }
+
+      // Get the blob and trigger download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = listing.fileName || 'data.bin';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
       
-      tl.to(overlayRef.current, { opacity: 1, duration: 0.2 })
-        .to(sealRef.current, { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.7)" })
-        .add(() => {
-           if(textRef.current) textRef.current.innerText = processingMode === 'download' ? "VERIFYING OWNERSHIP" : "ESTABLISHING UPLINK";
-           if(subTextRef.current) subTextRef.current.innerText = processingMode === 'download' ? "Checking wallet signature..." : "Connecting to secure server...";
-        })
-        .to(sealRef.current, { rotation: 180, duration: 1, ease: "power2.inOut" })
-        .to(progressRef.current, { width: "40%", duration: 1 }, "<")
-        .to(iconRef.current, { scale: 0, rotation: 90, duration: 0.2 })
-        .add(() => {
-           if(iconRef.current) iconRef.current.innerText = processingMode === 'download' ? "lock_open" : "cloud_upload";
-           if(textRef.current) textRef.current.innerText = processingMode === 'download' ? "DECRYPTING SHARDS" : "UPLOADING REQUEST";
-           if(subTextRef.current) subTextRef.current.innerText = processingMode === 'download' ? "Reassembling Walrus Protocol data..." : "Sending query parameters...";
-        })
-        .to(iconRef.current, { scale: 1, rotation: 0, duration: 0.2 })
-        .to(progressRef.current, { width: "75%", duration: 1.2 })
-        .to(sealRef.current, { x: 5, duration: 0.05, yoyo: true, repeat: 5 })
-        .to(sealRef.current, { borderColor: "#ccff00", backgroundColor: "#101618", boxShadow: "0 0 50px rgba(204, 255, 0, 0.4)", scale: 1.1, duration: 0.3 })
-        .to(iconRef.current, { scale: 0, duration: 0.1 }, "<")
-        .add(() => {
-           if(iconRef.current) { iconRef.current.innerText = processingMode === 'download' ? "download" : "visibility"; iconRef.current.style.color = "#ccff00"; }
-           if(textRef.current) { textRef.current.innerText = processingMode === 'download' ? "DECRYPTION COMPLETE" : "PREVIEW READY"; textRef.current.classList.add("text-accent-lime"); }
-           if(subTextRef.current) subTextRef.current.innerText = processingMode === 'download' ? "Download starting now." : "Rendering data snippet...";
-           if(pathRef.current) pathRef.current.style.fill = "#ccff00";
-        })
-        .to(iconRef.current, { scale: 1.5, duration: 0.4, ease: "elastic.out(1, 0.5)" })
-        .to(progressRef.current, { width: "100%", backgroundColor: "#ccff00", duration: 0.3 });
+      console.log('=== DOWNLOAD SUCCESS ===');
+    } catch (error) {
+      console.error('=== DOWNLOAD ERROR ===', error);
+      alert('Failed to download. Please try again.');
+    } finally {
+      setIsDownloading(false);
     }
-  }, [processingMode, listing]);
+  };
+
+  const handlePreviewClick = () => setIsPreviewModalOpen(true);
 
   if (isLoading) {
     return (
@@ -256,10 +260,23 @@ export default function DatasetDetailPage() {
               </p>
             </div>
           ) : isPurchased ? (
-            <button onClick={handleDownloadClick} className="group w-full rounded-xl border-2 border-ink bg-ink py-4 text-white shadow-hard transition-all hover:-translate-y-1 hover:bg-primary hover:text-ink">
+            <button 
+              onClick={handleDownloadClick} 
+              disabled={isDownloading}
+              className="group w-full rounded-xl border-2 border-ink bg-ink py-4 text-white shadow-hard transition-all hover:-translate-y-1 hover:bg-primary hover:text-ink disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+            >
               <div className="flex items-center justify-center gap-3">
-                <span className="material-symbols-outlined text-2xl">download</span>
-                <span className="text-xl font-black uppercase tracking-wide">Download</span>
+                {isDownloading ? (
+                  <>
+                    <span className="material-symbols-outlined text-2xl animate-spin">sync</span>
+                    <span className="text-xl font-black uppercase tracking-wide">Downloading...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-2xl">download</span>
+                    <span className="text-xl font-black uppercase tracking-wide">Download</span>
+                  </>
+                )}
               </div>
             </button>
           ) : (
@@ -355,6 +372,19 @@ export default function DatasetDetailPage() {
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="10" r="8" fill="#36B5A8"/><ellipse cx="12" cy="22" rx="6" ry="2" fill="#36B5A8" opacity="0.5"/><circle cx="9" cy="8" r="1.5" fill="white"/><circle cx="15" cy="8" r="1.5" fill="white"/><path d="M9 13C9 13 10.5 15 12 15C13.5 15 15 13 15 13" stroke="white" strokeWidth="1.5" strokeLinecap="round"/></svg>
                   </a>
                 </div>
+                {/* Purchase TX - only show if purchased */}
+                {isPurchased && displayTxDigest && (
+                  <div className="flex items-center gap-2 flex-wrap pt-2 border-t border-gray-200 mt-1">
+                    <span className="text-xs font-bold text-green-600 uppercase w-20 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                      Purchase TX:
+                    </span>
+                    <code className="text-xs font-mono text-ink bg-green-50 px-2 py-1 rounded border border-green-200">{displayTxDigest.slice(0, 16)}...{displayTxDigest.slice(-8)}</code>
+                    <a href={`https://suiscan.xyz/testnet/tx/${displayTxDigest}`} target="_blank" rel="noopener noreferrer" className="h-6 w-6 rounded bg-green-100 hover:bg-green-200 flex items-center justify-center border border-green-300" title="View Transaction">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 234 234" fill="none"><path d="M0 100C0 65 0 47.5 6.8 33C12.7 21.3 22.3 11.8 34 5.8C47.3 0 64.7 0 99.5 0H133.8C168.6 0 186 0 199.3 6.8C211 12.8 220.6 22.3 226.5 34C233.3 47.4 233.3 64.9 233.3 99.8V134.2C233.3 169.1 233.3 186.6 226.5 199.9C220.6 211.6 211 221.2 199.3 227.2C186 234 168.6 234 133.8 234H99.5C64.7 234 47.3 234 34 227.2C22.3 221.2 12.7 211.7 6.8 200C0 186.6 0 169.1 0 134.2V100Z" fill="#22c55e"/><path d="M177 87C178.7 85.9 180.8 85.6 182.4 86.3C183.2 86.6 183.9 87.1 184.3 87.8C184.7 88.5 185 89.4 184.9 90.2L181.4 148.2C181 155.7 178.2 163.4 173.6 170.4C160.4 190.4 133.2 200 112.8 191.8C107.1 189.5 102.5 186 99.2 181.7C100 181.8 100.8 181.7 101.5 181.7C122.4 181.7 143.5 170.3 155.1 152.7C160.7 144.1 164 134.7 164.6 125.6L166.5 93.3L177 87Z" fill="white"/><path d="M150 63.6C151.7 62.5 153.8 62.3 155.5 62.9C156.3 63.3 156.9 63.8 157.4 64.5C157.9 65.2 158.1 66.1 158 66.9L154.5 125C154 132.5 151.3 140.1 146.7 147.1C133.5 167.2 106.3 176.7 85.9 168.5C80.1 166.2 75.6 162.7 72.3 158.4C73.1 158.4 73.9 158.4 74.6 158.4C95.6 158.4 116.6 147.1 128.2 129.4C133.9 120.8 137.1 111.4 137.7 102.3L139.6 70L150 63.6Z" fill="white"/><path d="M123 40.3C124.7 39.2 126.8 39 128.5 39.6C129.2 39.9 129.9 40.5 130.3 41.2C130.8 41.9 131 42.7 130.9 43.5L127.4 101.6C127 109.1 124.2 116.7 119.6 123.7C106.4 143.8 79.2 153.3 58.8 145.1C38.5 136.9 32.7 114 45.9 93.9C50.5 86.9 57.1 80.7 64.6 76.1L123 40.3Z" fill="white"/></svg>
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -467,32 +497,6 @@ export default function DatasetDetailPage() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Decryption Animation Overlay */}
-      {processingMode && (
-        <div ref={overlayRef} className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-ink/95 backdrop-blur-md opacity-0">
-          <div ref={sealRef} className="relative flex h-64 w-64 items-center justify-center rounded-full border-[6px] border-white bg-ink shadow-2xl">
-            <div className="absolute inset-2 rounded-full border-2 border-dashed border-white/30 animate-spin" style={{ animationDuration: '10s' }}></div>
-            <div className="absolute inset-4 rounded-full border border-white/10 animate-spin" style={{ animationDuration: '8s', animationDirection: 'reverse' }}></div>
-            <span ref={iconRef} className="material-symbols-outlined !text-[80px] text-white relative z-10">lock</span>
-            <svg className="absolute inset-0 h-full w-full animate-spin" style={{ animationDuration: '20s' }} viewBox="0 0 100 100">
-              <path id="circlePath2" d="M 50, 50 m -35, 0 a 35,35 0 1,1 70,0 a 35,35 0 1,1 -70,0" fill="transparent" />
-              <text fill="white" fontSize="8" fontWeight="bold" letterSpacing="3">
-                <textPath ref={pathRef} href="#circlePath2" startOffset="0%">{processingMode === 'preview' ? 'SECURE PREVIEW • REMOTE DECRYPTION •' : 'SECURE DECRYPTION • WALRUS PROTOCOL •'}</textPath>
-              </text>
-            </svg>
-          </div>
-          <h2 ref={textRef} className="mt-12 text-3xl font-black text-white uppercase tracking-[0.2em] text-center px-4">INITIALIZING</h2>
-          <p ref={subTextRef} className="mt-2 text-sm font-bold text-gray-500 uppercase tracking-widest">Accessing decentralized storage</p>
-          <div className="mt-8 h-4 w-64 rounded-full border-2 border-white bg-gray-800 p-1 overflow-hidden">
-            <div ref={progressRef} className="h-full w-0 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.8)]"></div>
-          </div>
-          <div className="absolute top-10 right-10 flex flex-col items-end gap-1 opacity-40">
-            <span className="font-mono text-xs text-white">KEY_ID: 0x99...2A</span>
-            <span className="font-mono text-xs text-white">CIPHER: AES-256-GCM</span>
           </div>
         </div>
       )}

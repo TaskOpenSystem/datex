@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCurrentAccount } from '@mysten/dapp-kit';
-import { useAllListings } from '@/hooks/useMarketplace';
+import { useAllListings, usePurchasedDatasets } from '@/hooks/useMarketplace';
 import { formatPrice } from '@/lib/marketplace';
 import { DatasetListing } from '@/types/marketplace';
 import { useMarketplaceFilterContext } from '@/contexts/MarketplaceFilterContext';
@@ -17,9 +17,85 @@ export default function MarketplacePage() {
   const router = useRouter();
   const account = useCurrentAccount();
   const { data: listings, isLoading } = useAllListings();
+  const { data: purchases } = usePurchasedDatasets(account?.address);
   const { filters, setSearch } = useMarketplaceFilterContext();
 
   const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  // Create a Map of purchased dataset IDs with full purchase info for quick lookup
+  type PurchaseInfo = { txDigest: string; dataset: { blobId: string; mimeType?: string; fileName?: string } | null };
+  const purchasedMap = useMemo(() => {
+    const map = new Map<string, PurchaseInfo>();
+    if (!purchases) return map;
+    purchases.forEach(p => {
+      map.set(p.datasetId, { txDigest: p.txDigest, dataset: p.dataset });
+    });
+    return map;
+  }, [purchases]);
+
+  const isPurchased = (listing: DatasetListing) => {
+    return purchasedMap.has(listing.id);
+  };
+
+  const getPurchaseTxDigest = (listing: DatasetListing) => {
+    return purchasedMap.get(listing.id)?.txDigest || '';
+  };
+
+  const handleDownload = async (listing: DatasetListing) => {
+    if (!account) return;
+    
+    const purchaseInfo = purchasedMap.get(listing.id);
+    if (!purchaseInfo) return;
+
+    setDownloadingId(listing.id);
+    
+    try {
+      const payload = {
+        dataset_id: listing.id,
+        blob_id: listing.blobId,
+        payment_tx_digest: purchaseInfo.txDigest,
+        buyer_address: account.address,
+        mime_type: listing.mimeType || 'application/octet-stream',
+        file_name: listing.fileName || 'data.bin',
+      };
+      
+      console.log('=== DOWNLOAD REQUEST ===');
+      console.log('Payload:', JSON.stringify(payload, null, 2));
+      
+      const response = await fetch('/api/nautilus/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        throw new Error(errorData.error || `Download failed: ${response.status}`);
+      }
+
+      // Get the blob and trigger download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = listing.fileName || 'data.bin';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      console.log('=== DOWNLOAD SUCCESS ===');
+    } catch (error) {
+      console.error('=== DOWNLOAD ERROR ===', error);
+      alert('Failed to download. Please try again.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const handleViewListing = (listing: DatasetListing) => {
     router.push(`/marketplace/dataset/${listing.id}`);
@@ -142,6 +218,26 @@ export default function MarketplacePage() {
                         YOUR LISTING
                       </span>
                     )}
+                    {!isOwner(listing) && isPurchased(listing) && (
+                      <div className="absolute top-3 left-3 group/badge">
+                        <span className="rounded-full bg-green-500 text-white px-3 py-1 text-[10px] font-bold border border-ink flex items-center gap-1 cursor-pointer">
+                          <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                          PURCHASED
+                        </span>
+                        {/* Hidden txDigest - show on hover */}
+                        <div className="absolute top-full left-0 mt-1 opacity-0 group-hover/badge:opacity-100 transition-opacity z-20">
+                          <a
+                            href={`https://suiscan.xyz/testnet/tx/${getPurchaseTxDigest(listing)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="block bg-ink text-white text-[9px] font-mono px-2 py-1 rounded whitespace-nowrap hover:bg-gray-800"
+                          >
+                            TX: {getPurchaseTxDigest(listing).slice(0, 12)}...
+                          </a>
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Explorer Links */}
                     <div className="absolute top-3 right-3 flex gap-1" onClick={(e) => e.stopPropagation()}>
@@ -201,13 +297,28 @@ export default function MarketplacePage() {
                         <p className="text-lg font-bold text-ink">{formatPrice(listing.price)}</p>
                       </div>
                       <button 
-                        className="h-10 w-10 rounded-lg border-2 border-ink bg-white flex items-center justify-center hover:bg-accent-lime transition-colors"
+                        className={`h-10 w-10 rounded-lg border-2 border-ink flex items-center justify-center transition-colors ${
+                          isPurchased(listing) 
+                            ? 'bg-green-500 hover:bg-green-600' 
+                            : 'bg-white hover:bg-accent-lime'
+                        } ${downloadingId === listing.id ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        disabled={downloadingId === listing.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleViewListing(listing);
+                          if (isPurchased(listing)) {
+                            handleDownload(listing);
+                          } else {
+                            handleViewListing(listing);
+                          }
                         }}
                       >
-                        <span className="material-symbols-outlined text-ink">shopping_cart</span>
+                        {downloadingId === listing.id ? (
+                          <span className="material-symbols-outlined text-white animate-spin">sync</span>
+                        ) : (
+                          <span className={`material-symbols-outlined ${isPurchased(listing) ? 'text-white' : 'text-ink'}`}>
+                            {isPurchased(listing) ? 'download' : 'shopping_cart'}
+                          </span>
+                        )}
                       </button>
                     </div>
                   </div>
