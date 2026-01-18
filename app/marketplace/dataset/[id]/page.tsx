@@ -149,11 +149,11 @@ export default function DatasetDetailPage() {
         
         <div className="flex flex-col gap-2 mt-4">
           <div className="flex gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1 rounded-full border-2 border-ink bg-white px-3 py-1 text-xs font-black uppercase tracking-wider shadow-sm">
+            <span className="inline-flex items-center gap-1 rounded-full border-2 border-ink bg-white px-3 py-1 text-xs font-black uppercase tracking-wider shadow-sm text-ink">
               <span className="material-symbols-outlined text-[14px]">dataset</span>
               Dataset
             </span>
-            <span className="inline-flex items-center gap-1 rounded-full border-2 border-ink bg-white px-3 py-1 text-xs font-black uppercase tracking-wider shadow-sm">
+            <span className="inline-flex items-center gap-1 rounded-full border-2 border-ink bg-white px-3 py-1 text-xs font-black uppercase tracking-wider shadow-sm text-ink">
               <span className="material-symbols-outlined text-[14px]">verified</span>
               Seal Verified
             </span>

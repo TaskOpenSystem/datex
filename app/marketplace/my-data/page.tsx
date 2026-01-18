@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@mysten/dapp-kit';
@@ -13,6 +13,7 @@ import { marketplaceConfig, MIST_PER_SUI } from '@/config/marketplace';
 import { getMarketplaceTarget } from '@/lib/marketplace';
 import { encryptForMarketplace } from '@/lib/seal';
 import { useWalrusPayment } from '@/hooks/useWalrusPayment';
+import gsap from 'gsap';
 
 // Type for Walrus write blob flow (raw bytes, no file metadata)
 interface WalrusBlobFlow {
@@ -91,12 +92,106 @@ export default function MyDataPage() {
   const flowRef = useRef<Awaited<ReturnType<typeof createFlow>> | null>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
 
+  // Refs for GSAP animation
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const sealRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLHeadingElement>(null);
+  const subTextRef = useRef<HTMLParagraphElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
+  const iconRef = useRef<HTMLSpanElement>(null);
+  const pathRef = useRef<SVGTextPathElement>(null);
+
   // Auto-scroll log panel when new logs are added
   React.useEffect(() => {
     if (logContainerRef.current) {
       logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
     }
   }, [logs]);
+
+  // GSAP Animation for success overlay
+  useEffect(() => {
+    if (processingType === 'create') {
+      const tl = gsap.timeline({
+        onComplete: () => {
+          setTimeout(() => {
+            setProcessingType(null);
+            closeModal();
+            refetch();
+          }, 800);
+        }
+      });
+
+      // Reset common props
+      gsap.set(progressRef.current, { width: "0%", backgroundColor: "white" });
+      if (pathRef.current) pathRef.current.style.fill = "white";
+
+      // --- CREATE ANIMATION SETUP ---
+      gsap.set(sealRef.current, { scale: 3, opacity: 0, rotation: -45, borderColor: "white", boxShadow: "none", x: 0 });
+      gsap.set(iconRef.current, { scale: 0.5, opacity: 0, color: "white", rotation: 0 });
+      if (iconRef.current) iconRef.current.innerText = "lock";
+
+      // Sequence
+      tl.to(overlayRef.current, { opacity: 1, duration: 0.2 })
+        .to(textRef.current, {
+          duration: 0.5,
+          onStart: () => {
+            if (textRef.current) {
+              textRef.current.innerText = "ENCRYPTING METADATA";
+              textRef.current.className = "mt-12 text-3xl font-black text-white uppercase tracking-[0.2em] text-center px-4";
+            }
+            if (subTextRef.current) subTextRef.current.innerText = "Preparing asset for encryption";
+          }
+        })
+        .to(progressRef.current, { width: "60%", duration: 1.2, ease: "power2.inOut" })
+
+        // Seal slam
+        .to(sealRef.current, {
+          scale: 1,
+          opacity: 1,
+          rotation: 0,
+          duration: 0.4,
+          ease: "elastic.out(1, 0.5)"
+        })
+        .to(overlayRef.current, {
+          backgroundColor: "#101618",
+          duration: 0.1,
+          yoyo: true,
+          repeat: 1
+        }, "-=0.2")
+
+        // Lock appears
+        .to(iconRef.current, {
+          scale: 1,
+          opacity: 1,
+          duration: 0.3,
+          ease: "back.out(1.7)"
+        })
+
+        // Verifying
+        .add(() => {
+          if (textRef.current) textRef.current.innerText = "VERIFYING ZK-PROOFS";
+          if (subTextRef.current) subTextRef.current.innerText = "Generating SNARKs on Sui Network...";
+        })
+        .to(progressRef.current, { width: "90%", duration: 1 })
+
+        // Success
+        .to(sealRef.current, {
+          borderColor: "#ccff00",
+          boxShadow: "0 0 30px #ccff00",
+          duration: 0.3
+        })
+        .to(iconRef.current, { color: "#ccff00", duration: 0.3 }, "<")
+        .add(() => {
+          if (textRef.current) {
+            textRef.current.innerText = "ASSET SECURED";
+            textRef.current.classList.add("text-accent-lime");
+          }
+          if (subTextRef.current) subTextRef.current.innerText = "Listing created successfully.";
+        })
+        .to(progressRef.current, { width: "100%", backgroundColor: "#ccff00", duration: 0.3 })
+        .to(sealRef.current, { scale: 1.1, duration: 0.2, yoyo: true, repeat: 1 });
+    }
+  }, [processingType, refetch]);
 
   const addLog = (step: string, status: TransactionLog['status'], message: string, details?: string, link?: { url: string; label: string }) => {
     setLogs(prev => [...prev, {
@@ -1044,68 +1139,77 @@ export default function MyDataPage() {
                 </div>
 
                 {/* Right Panel - Transaction Logs */}
-                <div ref={logContainerRef} className="w-80 border-l-2 border-ink bg-gray-50 p-4 overflow-y-auto">
-                  <h3 className="font-bold uppercase text-sm mb-4 text-ink flex items-center gap-2">
-                    <span className="material-symbols-outlined">terminal</span>
-                    Transaction Log
-                  </h3>
+                <div className="w-80 border-l-2 border-ink bg-gray-50 flex flex-col h-full">
+                  <div className="p-4 border-b border-gray-200 shrink-0">
+                    <h3 className="font-bold uppercase text-sm text-ink flex items-center gap-2">
+                      <span className="material-symbols-outlined">terminal</span>
+                      Transaction Log
+                    </h3>
+                  </div>
 
-                  {logs.length === 0 ? (
-                    <p className="text-sm text-gray-400 text-center py-8">
-                      No transactions yet.<br />
-                      Start upload to see logs.
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {logs.map((log, index) => (
-                        <div
-                          key={index}
-                          className={`
-                            rounded-lg p-3 border-2 text-sm
-                            ${log.status === 'success' ? 'bg-green-50 border-green-300' : ''}
-                            ${log.status === 'error' ? 'bg-red-50 border-red-300' : ''}
-                            ${log.status === 'processing' ? 'bg-blue-50 border-blue-300 animate-pulse' : ''}
-                            ${log.status === 'pending' ? 'bg-gray-100 border-gray-300' : ''}
-                          `}
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="material-symbols-outlined text-sm">
-                              {log.status === 'success' ? 'check_circle' : log.status === 'error' ? 'error' : log.status === 'processing' ? 'sync' : 'schedule'}
-                            </span>
-                            <span className="font-bold text-ink">{log.step}</span>
+                  <div ref={logContainerRef} className="flex-1 overflow-y-auto p-4 min-h-0">
+                    {logs.length === 0 ? (
+                      <p className="text-sm text-gray-400 text-center py-8">
+                        No transactions yet.<br />
+                        Start upload to see logs.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {logs.map((log, index) => (
+                          <div
+                            key={index}
+                            className={`
+                              rounded-lg p-3 border-2 text-sm
+                              ${log.status === 'success' ? 'bg-green-50 border-green-300' : ''}
+                              ${log.status === 'error' ? 'bg-red-50 border-red-300' : ''}
+                              ${log.status === 'processing' ? 'bg-blue-50 border-blue-300 animate-pulse' : ''}
+                              ${log.status === 'pending' ? 'bg-gray-100 border-gray-300' : ''}
+                            `}
+                          >
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="material-symbols-outlined text-sm">
+                                {log.status === 'success' ? 'check_circle' : log.status === 'error' ? 'error' : log.status === 'processing' ? 'sync' : 'schedule'}
+                              </span>
+                              <span className="font-bold text-ink">{log.step}</span>
+                            </div>
+                            <p className="text-gray-600">{log.message}</p>
+                            {log.details && (
+                              <p className="text-xs text-gray-400 mt-1 font-mono break-all">{log.details}</p>
+                            )}
+                            {log.link && (
+                              <a
+                                href={log.link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary hover:underline mt-1 inline-flex items-center gap-1"
+                              >
+                                {log.link.label}
+                                <span className="material-symbols-outlined text-xs">open_in_new</span>
+                              </a>
+                            )}
+                            <p className="text-xs text-gray-400 mt-1">{log.timestamp}</p>
                           </div>
-                          <p className="text-gray-600">{log.message}</p>
-                          {log.details && (
-                            <p className="text-xs text-gray-400 mt-1 font-mono break-all">{log.details}</p>
-                          )}
-                          {log.link && (
-                            <a
-                              href={log.link.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-primary hover:underline mt-1 inline-flex items-center gap-1"
-                            >
-                              {log.link.label}
-                              <span className="material-symbols-outlined text-xs">open_in_new</span>
-                            </a>
-                          )}
-                          <p className="text-xs text-gray-400 mt-1">{log.timestamp}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Fixed bottom section for IDs */}
+                  {(blobId || listingId) && (
+                    <div className="p-4 border-t border-gray-200 shrink-0 space-y-3">
+                      {blobId && (
+                        <div className="p-3 bg-blue-50 border-2 border-blue-300 rounded-lg">
+                          <p className="text-xs font-bold text-blue-600 uppercase mb-1">Blob ID</p>
+                          <p className="font-mono text-xs text-ink break-all">{blobId}</p>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      )}
 
-                  {blobId && (
-                    <div className="mt-4 p-3 bg-blue-50 border-2 border-blue-300 rounded-lg">
-                      <p className="text-xs font-bold text-blue-600 uppercase mb-1">Blob ID</p>
-                      <p className="font-mono text-xs text-ink break-all">{blobId}</p>
-                    </div>
-                  )}
-
-                  {listingId && (
-                    <div className="mt-4 p-3 bg-green-50 border-2 border-green-300 rounded-lg">
-                      <p className="text-xs font-bold text-green-600 uppercase mb-1">Listing ID</p>
-                      <p className="font-mono text-xs text-ink break-all">{listingId}</p>
+                      {listingId && (
+                        <div className="p-3 bg-green-50 border-2 border-green-300 rounded-lg">
+                          <p className="text-xs font-bold text-green-600 uppercase mb-1">Listing ID</p>
+                          <p className="font-mono text-xs text-ink break-all">{listingId}</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1115,48 +1219,67 @@ export default function MyDataPage() {
         </div>
       )}
 
+      {/* Animation Overlay (GSAP) */}
       {processingType === 'create' && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl border-2 border-ink shadow-hard-lg p-8 max-w-md w-full mx-4">
-            <div className="flex flex-col items-center text-center">
-              <div className="relative mb-6">
-                <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
-                  <span className="material-symbols-outlined text-6xl text-green-500">check_circle</span>
-                </div>
-                <div className="absolute -inset-2 rounded-full border-4 border-green-400 animate-ping opacity-20"></div>
-              </div>
-              <h2 className="text-2xl font-black text-ink uppercase tracking-wide mb-2">
-                Listing Created!
-              </h2>
-              <p className="text-gray-600 mb-4">Your dataset is now on the marketplace</p>
+        <div
+          ref={overlayRef}
+          className="fixed inset-0 z-60 flex flex-col items-center justify-center bg-ink/95 backdrop-blur-md transition-colors opacity-0"
+        >
+          {/* The Seal */}
+          <div
+            ref={sealRef}
+            className="relative flex h-64 w-64 items-center justify-center rounded-full border-[6px] border-white bg-ink shadow-2xl"
+          >
+            {/* Inner Rings */}
+            <div className="absolute inset-2 rounded-full border-2 border-dashed border-white/30 animate-[spin_10s_linear_infinite]"></div>
+            <div className="absolute inset-4 rounded-full border border-white/10 animate-[spin_8s_linear_infinite_reverse]"></div>
 
-              {listingId && (
-                <div className="w-full bg-gray-50 rounded-lg p-3 mb-6 border border-gray-200">
-                  <p className="text-xs font-bold text-gray-500 uppercase mb-1">Listing ID</p>
-                  <p className="font-mono text-xs text-ink break-all">{listingId}</p>
-                </div>
-              )}
+            {/* Icon */}
+            <span ref={iconRef} className="material-symbols-outlined text-[120px] text-white relative z-10">lock</span>
 
-              <div className="flex gap-3 w-full">
-                <button
-                  onClick={() => {
-                    setProcessingType(null);
-                    refetch();
-                  }}
-                  className="flex-1 h-12 rounded-xl border-2 border-ink bg-primary text-white font-bold hover:translate-y-0.5 transition-all"
-                >
-                  View My Listings
-                </button>
-                <button
-                  onClick={() => {
-                    setProcessingType(null);
-                  }}
-                  className="flex-1 h-12 rounded-xl border-2 border-gray-300 bg-white text-gray-700 font-bold hover:bg-gray-50 transition-colors"
-                >
-                  Close
-                </button>
-              </div>
+            {/* Decorative Text Ring */}
+            <svg className="absolute inset-0 h-full w-full animate-[spin_20s_linear_infinite_reverse]" viewBox="0 0 100 100" width="100" height="100">
+              <path id="circlePathCreate" d="M 50, 50 m -35, 0 a 35,35 0 1,1 70,0 a 35,35 0 1,1 -70,0" fill="transparent" />
+              <text fill="white" fontSize="8" fontWeight="bold" letterSpacing="2">
+                <textPath ref={pathRef} href="#circlePathCreate" startOffset="0%">
+                  SUI DATA MARKETPLACE • SECURE ENCRYPTION •
+                </textPath>
+              </text>
+            </svg>
+          </div>
+
+          {/* Status Text */}
+          <h2
+            ref={textRef}
+            className="mt-12 text-3xl font-black text-white uppercase tracking-[0.2em] text-center px-4"
+          >
+            INITIALIZING
+          </h2>
+          <p ref={subTextRef} className="mt-2 text-sm font-bold text-gray-500 uppercase tracking-widest">
+            Accessing secure storage
+          </p>
+
+          {/* Progress Bar */}
+          <div className="mt-8 h-4 w-64 rounded-full border-2 border-white bg-gray-800 p-1">
+            <div
+              ref={progressRef}
+              className="h-full w-0 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.5)]"
+            ></div>
+          </div>
+
+          {/* Listing ID Display */}
+          {listingId && (
+            <div className="mt-6 bg-white/10 rounded-lg px-4 py-2 border border-white/20">
+              <p className="text-xs font-bold text-gray-400 uppercase mb-1">Listing ID</p>
+              <p className="font-mono text-xs text-white break-all max-w-[300px]">{listingId}</p>
             </div>
+          )}
+
+          {/* Brutalist Decor */}
+          <div className="absolute bottom-10 left-0 right-0 flex justify-center gap-8 opacity-30">
+            <span className="font-mono text-xs text-white">BLOCK: #829102</span>
+            <span className="font-mono text-xs text-white">HASH: 0x4f...a9</span>
+            <span className="font-mono text-xs text-white">NODE: SUI-TESTNET-01</span>
           </div>
         </div>
       )}

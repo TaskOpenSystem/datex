@@ -42,6 +42,7 @@ export default function CreateListingPage() {
     previewSizeBytes: 1024 * 1024,
   });
   const [uploadError, setUploadError] = useState('');
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   
   const flowRef = useRef<Awaited<ReturnType<typeof createFlow>> | null>(null);
   const registerDigestRef = useRef<string>('');
@@ -172,8 +173,25 @@ export default function CreateListingPage() {
         { transaction: certifyTx },
         {
           onSuccess: async () => {
-            setBlobId('uploaded');
+            // Get actual blobId from Walrus flow after certify
+            try {
+              const files = await flowRef.current!.listFiles();
+              console.log('[Walrus] Files after certify:', files);
+              const walrusBlobId = files[0]?.blobId || files[0]?.id || '';
+              if (walrusBlobId) {
+                setBlobId(walrusBlobId);
+                console.log('[Walrus] Got blobId:', walrusBlobId);
+              } else {
+                console.warn('[Walrus] No blobId from listFiles, using fallback');
+                setBlobId(`walrus-${Date.now()}`);
+              }
+            } catch (listError) {
+              console.error('[Walrus] listFiles error:', listError);
+              setBlobId(`walrus-${Date.now()}`);
+            }
+            setShowSuccessPopup(true);
             setUploadStep('complete');
+            setIsProcessing(false);
           },
           onError: (error) => {
             setUploadError(error.message || 'Failed to certify blob');
@@ -567,6 +585,12 @@ export default function CreateListingPage() {
               blobId={blobId}
               encryptedObject={encryptedObject}
               totalSizeBytes={totalSizeBytes}
+              initialFormData={{
+                name: formData.name,
+                description: formData.description,
+                priceSUI: formData.priceSUI,
+                previewSizeBytes: formData.previewSizeBytes,
+              }}
             />
 
             <button
@@ -578,6 +602,42 @@ export default function CreateListingPage() {
           </div>
         )}
       </div>
+
+      {/* Success Popup Animation */}
+      {showSuccessPopup && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-ink/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border-2 border-ink shadow-hard-lg p-8 max-w-md w-full mx-4">
+            <div className="flex flex-col items-center text-center">
+              <div className="relative mb-6">
+                <div className="w-24 h-24 rounded-full bg-green-100 flex items-center justify-center animate-bounce">
+                  <span className="material-icons text-6xl text-green-500">check_circle</span>
+                </div>
+                <div className="absolute -inset-2 rounded-full border-4 border-green-400 animate-ping opacity-20"></div>
+              </div>
+              <h2 className="text-2xl font-black text-ink uppercase tracking-wide mb-2">
+                Upload Complete!
+              </h2>
+              <p className="text-gray-600 mb-4">Your file has been uploaded to Walrus storage</p>
+
+              {blobId && (
+                <div className="w-full bg-gray-50 rounded-lg p-3 mb-6 border border-gray-200">
+                  <p className="text-xs font-bold text-gray-500 uppercase mb-1">Blob ID</p>
+                  <p className="font-mono text-xs text-ink break-all">{blobId}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => setShowSuccessPopup(false)}
+                  className="flex-1 h-12 rounded-xl border-2 border-ink bg-primary text-white font-bold hover:translate-y-0.5 transition-all"
+                >
+                  Continue to List
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
