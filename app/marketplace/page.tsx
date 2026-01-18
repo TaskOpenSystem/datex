@@ -20,7 +20,7 @@ export default function MarketplacePage() {
   const { data: purchases } = usePurchasedDatasets(account?.address);
   const { filters, setSearch } = useMarketplaceFilterContext();
 
-  const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const [sortBy, setSortBy] = useState<SortOption>('price_desc');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   // Create a Map of purchased dataset IDs with full purchase info for quick lookup
