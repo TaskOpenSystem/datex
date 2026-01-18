@@ -421,7 +421,7 @@ export default function MyDataPage() {
       if (hasEnoughWal) {
         await addLogWithDelay('register', 'processing', `Storage cost: ${walCostFormatted} WAL (paying with WAL)`);
       } else {
-        await addLogWithDelay('register', 'processing', `Storage cost: ${walCostFormatted} WAL → Swapping ${suiNeeded.toFixed(6)} SUI to WAL...`);
+        await addLogWithDelay('register', 'processing', `Storage cost: ${walCostFormatted} WAL → Swapping ${suiNeeded.toFixed(6)} SUI to WAL to pay storage cost...`);
       }
 
       const walResult = await ensureWalBalance(dataToUpload.length, 3);
