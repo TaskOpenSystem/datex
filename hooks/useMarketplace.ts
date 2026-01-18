@@ -327,7 +327,8 @@ export function usePurchaseDataset() {
   const purchase = useCallback(
     (
       listing: DatasetListing,
-      onSuccess: (result: PurchaseResult) => void
+      onSuccess: (result: PurchaseResult) => void,
+      onError?: (error: Error) => void
     ) => {
       if (!account) {
         throw new Error('Wallet not connected');
@@ -369,6 +370,9 @@ export function usePurchaseDataset() {
           onError: (error) => {
             console.error('=== PURCHASE ERROR ===');
             console.error('Error:', error);
+            if (onError) {
+              onError(error);
+            }
           },
         }
       );

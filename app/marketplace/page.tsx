@@ -207,7 +207,7 @@ export default function MarketplacePage() {
                           handleViewListing(listing);
                         }}
                       >
-                        <span className="material-symbols-outlined">shopping_cart</span>
+                        <span className="material-symbols-outlined text-ink">shopping_cart</span>
                       </button>
                     </div>
                   </div>

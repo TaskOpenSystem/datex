@@ -8,6 +8,7 @@ import { useListing, useAccountBalance, usePurchaseDataset } from '@/hooks/useMa
 import { formatSize, formatPrice, shortenAddress } from '@/lib/marketplace';
 import DecryptionPreviewModal from '@/components/marketplace/DecryptionPreviewModal';
 import gsap from 'gsap';
+import confetti from 'canvas-confetti';
 
 export default function DatasetDetailPage() {
   const params = useParams();
@@ -24,6 +25,7 @@ export default function DatasetDetailPage() {
   const [processingMode, setProcessingMode] = useState<'download' | 'preview' | null>(null);
   const [isPurchased, setIsPurchased] = useState(false);
   const [purchaseTxDigest, setPurchaseTxDigest] = useState('');
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
 
   // Refs for animation
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -36,16 +38,64 @@ export default function DatasetDetailPage() {
 
   const isOwner = listing && account?.address === listing.seller;
 
+  const fireConfetti = () => {
+    // First burst
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.6 }
+    });
+    
+    // Side bursts
+    setTimeout(() => {
+      confetti({
+        particleCount: 50,
+        angle: 60,
+        spread: 55,
+        origin: { x: 0 }
+      });
+      confetti({
+        particleCount: 50,
+        angle: 120,
+        spread: 55,
+        origin: { x: 1 }
+      });
+    }, 150);
+    
+    // Final celebration
+    setTimeout(() => {
+      confetti({
+        particleCount: 100,
+        spread: 100,
+        origin: { y: 0.6 },
+        colors: ['#ccff00', '#3B82F6', '#FF5C00', '#9747FF']
+      });
+    }, 300);
+  };
+
   const handlePurchase = () => {
     if (!account || !listing) {
       alert('Please connect your wallet');
       return;
     }
-    purchase(listing, (result) => {
-      setIsPurchased(true);
-      setPurchaseTxDigest(result.digest);
-      setIsBuyModalOpen(false);
-    });
+    setPurchaseError(null);
+    purchase(
+      listing, 
+      (result) => {
+        setIsPurchased(true);
+        setPurchaseTxDigest(result.digest);
+        setIsBuyModalOpen(false);
+        fireConfetti();
+      },
+      (error) => {
+        const errorMessage = error.message || 'Transaction failed';
+        if (errorMessage.includes('rejected') || errorMessage.includes('Rejected')) {
+          setPurchaseError('Transaction cancelled. You declined the payment request.');
+        } else {
+          setPurchaseError(errorMessage);
+        }
+      }
+    );
   };
 
   const handleDownloadClick = () => setProcessingMode('download');
@@ -402,8 +452,16 @@ export default function DatasetDetailPage() {
                   <p className="font-bold text-red-800 text-sm flex items-center gap-2"><span className="material-symbols-outlined text-sm">warning</span>Insufficient balance</p>
                 </div>
               )}
+              {purchaseError && (
+                <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-3">
+                  <p className="font-bold text-orange-800 text-sm flex items-center gap-2">
+                    <span className="material-symbols-outlined text-sm">cancel</span>
+                    {purchaseError}
+                  </p>
+                </div>
+              )}
               <div className="flex gap-3 mt-2">
-                <button onClick={() => setIsBuyModalOpen(false)} className="flex-1 h-12 rounded-xl border-2 border-ink bg-white text-ink font-bold hover:bg-gray-100">Cancel</button>
+                <button onClick={() => { setIsBuyModalOpen(false); setPurchaseError(null); }} className="flex-1 h-12 rounded-xl border-2 border-ink bg-white text-ink font-bold hover:bg-gray-100">Cancel</button>
                 <button onClick={handlePurchase} disabled={isPurchasing} className="flex-1 h-12 rounded-xl border-2 border-ink bg-primary text-ink font-bold shadow-hard-sm hover:translate-y-0.5 hover:shadow-none transition-all flex items-center justify-center gap-2 disabled:opacity-50">
                   {isPurchasing ? <><span className="material-symbols-outlined animate-spin">sync</span>Processing...</> : 'Confirm'}
                 </button>
