@@ -550,7 +550,7 @@ export function usePurchasedDatasets(address?: string) {
       const { data } = await suiClient.getOwnedObjects({
         owner: address,
         filter: { StructType: RECEIPT_TYPE },
-        options: { showContent: true, showType: true },
+        options: { showContent: true, showType: true, showPreviousTransaction: true },
       });
 
       const receipts = data
@@ -564,9 +564,10 @@ export function usePurchasedDatasets(address?: string) {
             seller: fields.seller as string,
             price: BigInt(fields.price as string),
             timestamp: Number(fields.timestamp),
+            txDigest: obj.data.previousTransaction || '',
           };
         })
-        .filter((receipt): receipt is { id: string; datasetId: string; buyer: string; seller: string; price: bigint; timestamp: number } => receipt !== null);
+        .filter((receipt): receipt is { id: string; datasetId: string; buyer: string; seller: string; price: bigint; timestamp: number; txDigest: string } => receipt !== null);
 
       if (receipts.length === 0) return [];
 

@@ -78,6 +78,7 @@ export default function MyDataPage() {
   const [totalSizeBytes, setTotalSizeBytes] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [listingId, setListingId] = useState('');
 
   const [logs, setLogs] = useState<TransactionLog[]>([]);
@@ -636,6 +637,76 @@ export default function MyDataPage() {
     flowRef.current = null;
   };
 
+  const handleDownload = async (purchase: {
+    id: string;
+    datasetId: string;
+    txDigest: string;
+    dataset: {
+      blobId: string;
+      mimeType?: string;
+      fileName?: string;
+    } | null;
+  }) => {
+    if (!purchase.dataset || !account) return;
+
+    setDownloadingId(purchase.id);
+    
+    try {
+      const payload = {
+        dataset_id: purchase.datasetId,
+        blob_id: purchase.dataset.blobId,
+        payment_tx_digest: purchase.txDigest,
+        buyer_address: account.address,
+        mime_type: purchase.dataset.mimeType || 'application/octet-stream',
+        file_name: purchase.dataset.fileName || 'data.bin',
+      };
+      
+      console.log('=== DOWNLOAD REQUEST ===');
+      console.log('URL:', '/api/nautilus/download');
+      console.log('Payload:', JSON.stringify(payload, null, 2));
+      
+      const response = await fetch('/api/nautilus/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      console.log('=== DOWNLOAD RESPONSE ===');
+      console.log('Status:', response.status);
+      console.log('StatusText:', response.statusText);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        throw new Error(errorData.error || `Download failed: ${response.status}`);
+      }
+
+      // Get the blob and trigger download
+      const blob = await response.blob();
+      console.log('Blob size:', blob.size);
+      console.log('Blob type:', blob.type);
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = purchase.dataset.fileName || 'data.bin';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      console.log('=== DOWNLOAD SUCCESS ===');
+    } catch (error) {
+      console.error('=== DOWNLOAD ERROR ===');
+      console.error('Error:', error);
+      alert('Failed to download. Please try again.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const totalRevenue = listings ? listings.reduce((acc, l) => acc + Number(l.price), 0) / 1000000000 : 0;
 
   return (
@@ -958,13 +1029,23 @@ export default function MyDataPage() {
 
                     {/* Actions */}
                     <div className="flex gap-2 mt-auto pt-3 border-t border-gray-200">
-                      <Link
-                        href={`/marketplace/dataset/${purchase.datasetId}`}
-                        className="flex-1 h-9 rounded-lg border-2 border-ink bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors flex items-center justify-center gap-1"
+                      <button
+                        onClick={() => handleDownload(purchase)}
+                        disabled={downloadingId === purchase.id || !purchase.dataset}
+                        className="flex-1 h-9 rounded-lg border-2 border-ink bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
                       >
-                        <span className="material-symbols-outlined text-sm">download</span>
-                        Download
-                      </Link>
+                        {downloadingId === purchase.id ? (
+                          <>
+                            <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                            Downloading...
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-sm">download</span>
+                            Download
+                          </>
+                        )}
+                      </button>
                       <a
                         href={`https://suiscan.xyz/testnet/object/${purchase.id}`}
                         target="_blank"
