@@ -364,45 +364,64 @@ export function usePurchaseDataset() {
 
 export function useOwnedListings(address?: string) {
   const suiClient = useSuiClient();
+  const { data: registryId } = useRegistry();
 
   return useQuery({
-    queryKey: ['owned-listings', address, marketplaceConfig.packageId],
+    queryKey: ['owned-listings', address, registryId],
     queryFn: async () => {
-      if (!address) return [];
+      if (!address || !registryId) return [];
 
-      // Build type string dynamically to ensure env vars are loaded
-      const listingType = `${marketplaceConfig.packageId}::${marketplaceConfig.moduleName}::DatasetListing`;
+      console.log('[useOwnedListings] Fetching listings for seller:', address);
 
-      const { data } = await suiClient.getOwnedObjects({
-        owner: address,
-        filter: { StructType: listingType },
-        options: { showContent: true, showType: true },
+      // 1. Get the registry object to find all listing IDs
+      const registry = await suiClient.getObject({
+        id: registryId,
+        options: { showContent: true },
       });
 
-      return data
+      // VecSet<ID> stores IDs as an array of strings directly
+      const content = registry.data?.content as { fields?: { listings?: { fields?: { contents?: string[] } } } } | undefined;
+      const listingIds: string[] = (content?.fields?.listings?.fields?.contents || []).filter((id): id is string => !!id && id.startsWith('0x'));
+
+      console.log('[useOwnedListings] Found total listings:', listingIds.length);
+
+      if (listingIds.length === 0) return [];
+
+      // 2. Batch fetch all listing details
+      const objects = await suiClient.multiGetObjects({
+        ids: listingIds,
+        options: { showContent: true },
+      });
+
+      // 3. Filter by seller address and parse
+      const listings = objects
         .map((obj) => {
-          if (!obj.data?.content || obj.data.content.dataType !== 'moveObject') return null;
-          try {
-            const fields = obj.data.content.fields as Record<string, unknown>;
-            // Parse directly from fields (getOwnedObjects returns fields directly)
-            return {
-              id: obj.data.objectId || '',
-              seller: fields.seller as string,
-              price: BigInt(fields.price as string),
-              blobId: fields.blob_id as string,
-              encryptedObject: fields.encrypted_object as string,
-              name: fields.name as string,
-              description: fields.description as string,
-              previewSize: BigInt(fields.preview_size as string),
-              totalSize: BigInt(fields.total_size as string),
-            } as DatasetListing;
-          } catch {
-            return null;
-          }
+          const fields = obj.data?.content?.dataType === 'moveObject' ? (obj.data.content.fields as Record<string, unknown>) : null;
+          if (!fields) return null;
+
+          // Only return listings where seller matches the current user
+          const seller = fields.seller as string;
+          if (seller !== address) return null;
+
+          return {
+            id: obj.data?.objectId || '',
+            seller: seller,
+            price: BigInt(fields.price as string),
+            blobId: fields.blob_id as string,
+            encryptedObject: fields.encrypted_object as string,
+            name: fields.name as string,
+            description: fields.description as string,
+            previewSize: BigInt(fields.preview_size as string),
+            totalSize: BigInt(fields.total_size as string),
+          } as DatasetListing;
         })
         .filter((listing): listing is DatasetListing => listing !== null);
+
+      console.log('[useOwnedListings] Listings by seller:', listings.length);
+
+      return listings;
     },
-    enabled: !!address,
+    enabled: !!address && !!registryId,
     refetchInterval: 5000,
   });
 }
@@ -414,9 +433,9 @@ export function useListing(listingId: string | undefined) {
     queryKey: ['listing', listingId],
     queryFn: async () => {
       if (!listingId) return null;
-      
+
       console.log('[useListing] Fetching listing:', listingId);
-      
+
       const object = await suiClient.getObject({
         id: listingId,
         options: { showContent: true, showType: true },
