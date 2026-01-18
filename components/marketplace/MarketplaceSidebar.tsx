@@ -3,11 +3,17 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCurrentAccount, useDisconnectWallet, ConnectButton, useSuiClient } from "@mysten/dapp-kit";
+import {
+  useCurrentAccount,
+  useDisconnectWallet,
+  ConnectButton,
+  useSuiClient,
+} from "@mysten/dapp-kit";
 import { useQuery } from "@tanstack/react-query";
 import { useMarketplaceFilterContext } from "@/contexts/MarketplaceFilterContext";
 
-const WAL_COIN_TYPE = "0x8270feb7375eee355e64fdb69c50abb6b5f9393a722883c1cf45f8e26048810a::wal::WAL";
+const WAL_COIN_TYPE =
+  "0x8270feb7375eee355e64fdb69c50abb6b5f9393a722883c1cf45f8e26048810a::wal::WAL";
 
 export default function MarketplaceSidebar() {
   const pathname = usePathname();
@@ -22,13 +28,8 @@ export default function MarketplaceSidebar() {
   const [copied, setCopied] = useState(false);
 
   // Get filter state from context
-  const {
-    filters,
-    setCategory,
-    setPriceRange,
-    setVerifiedOnly,
-    resetFilters,
-  } = useMarketplaceFilterContext();
+  const { filters, setCategory, setPriceRange, setVerifiedOnly, resetFilters } =
+    useMarketplaceFilterContext();
 
   // Price slider state
   const [isDragging, setIsDragging] = useState(false);
@@ -36,16 +37,23 @@ export default function MarketplaceSidebar() {
   const maxPrice = 1000;
 
   // Fetch SuiNS name
-  const { data: suinsName } = useQuery({
+  const { data: suinsName, isLoading: isLoadingSuiNS } = useQuery({
     queryKey: ["suins-name", account?.address],
     queryFn: async () => {
       if (!account?.address) return null;
-      const result = await suiClient.resolveNameServiceNames({
-        address: account.address,
-      });
-      return result.data?.[0] || null;
+      try {
+        const result = await suiClient.resolveNameServiceNames({
+          address: account.address,
+          limit: 1,
+        });
+        return result.data?.[0] || null;
+      } catch (error) {
+        console.error("[SuiNS] Error resolving name:", error);
+        return null;
+      }
     },
     enabled: !!account?.address,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
   // Fetch SUI balance
@@ -308,7 +316,9 @@ export default function MarketplaceSidebar() {
                 className="flex items-center justify-between p-2 rounded-lg border-2 border-gray-100 bg-gray-50 cursor-pointer"
                 onClick={() => setVerifiedOnly(!filters.verifiedOnly)}
               >
-                <span className="text-sm font-bold text-ink">Verified Source</span>
+                <span className="text-sm font-bold text-ink">
+                  Verified Source
+                </span>
                 <div
                   className={`w-10 h-5 rounded-full relative transition-colors ${filters.verifiedOnly ? "bg-ink" : "bg-gray-300"}`}
                 >
@@ -321,43 +331,90 @@ export default function MarketplaceSidebar() {
           </div>
         ) : (
           <div className="flex flex-col gap-5">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-ink">Asset Status</h3>
+            <h3 className="text-sm font-bold uppercase tracking-wider text-ink">
+              Asset Status
+            </h3>
             <div className="space-y-3">
               <label
                 className="flex items-center gap-3 cursor-pointer group"
-                onClick={() => setLocalAssetStatus((prev) => ({ ...prev, active: !prev.active }))}
+                onClick={() =>
+                  setLocalAssetStatus((prev) => ({
+                    ...prev,
+                    active: !prev.active,
+                  }))
+                }
               >
-                <div className={`w-5 h-5 border-2 border-ink rounded flex items-center justify-center ${localAssetStatus.active ? "bg-primary" : "bg-white group-hover:border-primary"}`}>
-                  {localAssetStatus.active && <span className="material-symbols-outlined text-white text-xs font-bold">check</span>}
+                <div
+                  className={`w-5 h-5 border-2 border-ink rounded flex items-center justify-center ${localAssetStatus.active ? "bg-primary" : "bg-white group-hover:border-primary"}`}
+                >
+                  {localAssetStatus.active && (
+                    <span className="material-symbols-outlined text-white text-xs font-bold">
+                      check
+                    </span>
+                  )}
                 </div>
-                <span className={`text-sm font-bold ${localAssetStatus.active ? "text-ink" : "text-ink"}`}>Active Listings</span>
+                <span
+                  className={`text-sm font-bold ${localAssetStatus.active ? "text-ink" : "text-ink"}`}
+                >
+                  Active Listings
+                </span>
               </label>
               <label
                 className="flex items-center gap-3 cursor-pointer group"
-                onClick={() => setLocalAssetStatus((prev) => ({ ...prev, drafts: !prev.drafts }))}
+                onClick={() =>
+                  setLocalAssetStatus((prev) => ({
+                    ...prev,
+                    drafts: !prev.drafts,
+                  }))
+                }
               >
-                <div className={`w-5 h-5 border-2 border-ink rounded flex items-center justify-center ${localAssetStatus.drafts ? "bg-primary" : "bg-white group-hover:border-primary"}`}>
-                  {localAssetStatus.drafts && <span className="material-symbols-outlined text-white text-xs font-bold">check</span>}
+                <div
+                  className={`w-5 h-5 border-2 border-ink rounded flex items-center justify-center ${localAssetStatus.drafts ? "bg-primary" : "bg-white group-hover:border-primary"}`}
+                >
+                  {localAssetStatus.drafts && (
+                    <span className="material-symbols-outlined text-white text-xs font-bold">
+                      check
+                    </span>
+                  )}
                 </div>
-                <span className="text-sm font-medium text-ink group-hover:text-ink">Drafts</span>
+                <span className="text-sm font-medium text-ink group-hover:text-ink">
+                  Drafts
+                </span>
               </label>
               <label
                 className="flex items-center gap-3 cursor-pointer group"
-                onClick={() => setLocalAssetStatus((prev) => ({ ...prev, archived: !prev.archived }))}
+                onClick={() =>
+                  setLocalAssetStatus((prev) => ({
+                    ...prev,
+                    archived: !prev.archived,
+                  }))
+                }
               >
-                <div className={`w-5 h-5 border-2 border-ink rounded flex items-center justify-center ${localAssetStatus.archived ? "bg-primary" : "bg-white group-hover:border-primary"}`}>
-                  {localAssetStatus.archived && <span className="material-symbols-outlined text-white text-xs font-bold">check</span>}
+                <div
+                  className={`w-5 h-5 border-2 border-ink rounded flex items-center justify-center ${localAssetStatus.archived ? "bg-primary" : "bg-white group-hover:border-primary"}`}
+                >
+                  {localAssetStatus.archived && (
+                    <span className="material-symbols-outlined text-white text-xs font-bold">
+                      check
+                    </span>
+                  )}
                 </div>
-                <span className="text-sm font-medium text-ink group-hover:text-ink">Archived</span>
+                <span className="text-sm font-medium text-ink group-hover:text-ink">
+                  Archived
+                </span>
               </label>
             </div>
 
             <div className="p-4 bg-gray-100 rounded-xl border-2 border-ink border-dashed mt-4">
-              <p className="text-xs font-bold text-ink uppercase mb-2">Storage Usage</p>
+              <p className="text-xs font-bold text-ink uppercase mb-2">
+                Storage Usage
+              </p>
               <div className="h-3 w-full rounded-full bg-white border border-gray-300 overflow-hidden">
                 <div className="h-full bg-primary w-3/4"></div>
               </div>
-              <p className="text-xs font-bold text-right mt-1 text-ink">750MB / 1GB</p>
+              <p className="text-xs font-bold text-right mt-1 text-ink">
+                750MB / 1GB
+              </p>
             </div>
           </div>
         )}
@@ -369,7 +426,10 @@ export default function MarketplaceSidebar() {
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full border-2 border-ink bg-linear-to-br from-primary to-accent-lime flex items-center justify-center">
-                <span className="material-symbols-outlined text-white" style={{ fontSize: "20px" }}>
+                <span
+                  className="material-symbols-outlined text-white"
+                  style={{ fontSize: "20px" }}
+                >
                   account_balance_wallet
                 </span>
               </div>
@@ -380,9 +440,18 @@ export default function MarketplaceSidebar() {
               >
                 <div className="flex items-center gap-1">
                   <span className="text-sm font-bold text-ink truncate group-hover:text-primary transition-colors">
-                    {suinsName ? `@${suinsName}` : formatAddress(account.address)}
+                    {isLoadingSuiNS ? (
+                      <span className="animate-pulse">Loading...</span>
+                    ) : suinsName ? (
+                      suinsName
+                    ) : (
+                      formatAddress(account.address)
+                    )}
                   </span>
-                  <span className="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors" style={{ fontSize: "14px" }}>
+                  <span
+                    className="material-symbols-outlined text-gray-400 group-hover:text-primary transition-colors"
+                    style={{ fontSize: "14px" }}
+                  >
                     {copied ? "check" : "content_copy"}
                   </span>
                 </div>
@@ -397,7 +466,10 @@ export default function MarketplaceSidebar() {
                 className="h-8 w-8 rounded-lg border-2 border-ink bg-white flex items-center justify-center hover:bg-accent-lime transition-colors shrink-0"
                 title="View on SuiVision"
               >
-                <span className="material-symbols-outlined text-ink" style={{ fontSize: "18px" }}>
+                <span
+                  className="material-symbols-outlined text-ink"
+                  style={{ fontSize: "18px" }}
+                >
                   open_in_new
                 </span>
               </button>
@@ -407,11 +479,15 @@ export default function MarketplaceSidebar() {
             <div className="flex gap-2">
               <div className="flex-1 px-2 py-1.5 rounded-lg bg-white border border-gray-200">
                 <p className="text-xs text-gray-500 font-medium">SUI</p>
-                <p className="text-sm font-bold text-ink truncate">{suiBalance || "0.00"}</p>
+                <p className="text-sm font-bold text-ink truncate">
+                  {suiBalance || "0.00"}
+                </p>
               </div>
               <div className="flex-1 px-2 py-1.5 rounded-lg bg-white border border-gray-200">
                 <p className="text-xs text-gray-500 font-medium">WAL</p>
-                <p className="text-sm font-bold text-ink truncate">{walBalance || "0.00"}</p>
+                <p className="text-sm font-bold text-ink truncate">
+                  {walBalance || "0.00"}
+                </p>
               </div>
             </div>
 
@@ -419,13 +495,20 @@ export default function MarketplaceSidebar() {
               onClick={handleDisconnect}
               className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg border-2 border-ink bg-white text-sm font-bold text-red-600 hover:bg-red-50 transition-colors"
             >
-              <span className="material-symbols-outlined" style={{ fontSize: "18px" }}>logout</span>
+              <span
+                className="material-symbols-outlined"
+                style={{ fontSize: "18px" }}
+              >
+                logout
+              </span>
               Disconnect
             </button>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            <p className="text-sm font-bold text-gray-600">Connect your wallet to get started</p>
+            <p className="text-sm font-bold text-gray-600">
+              Connect your wallet to get started
+            </p>
             <ConnectButton
               connectText="Connect Wallet"
               className="w-full! rounded-lg! border-2! border-ink! bg-primary! px-4! py-3! font-bold! text-white! shadow-hard-sm! hover:-translate-y-1! transition-transform!"
