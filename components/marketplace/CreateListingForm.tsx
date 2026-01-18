@@ -16,6 +16,11 @@ interface CreateListingFormProps {
     description: string;
     priceSUI: string;
     previewSizeBytes: number;
+    imageUrl?: string;
+    mimeType?: string;
+    fileName?: string;
+    contentType?: string;
+    fileCount?: number;
   };
 }
 
@@ -29,6 +34,11 @@ export function CreateListingForm({ blobId, encryptedObject, totalSizeBytes, ini
   const [description, setDescription] = useState(initialFormData?.description ?? '');
   const [priceSUI, setPriceSUI] = useState(initialFormData?.priceSUI ?? '');
   const [previewSizeBytes, setPreviewSizeBytes] = useState(initialFormData?.previewSizeBytes ?? Math.min(1024 * 1024, totalSizeBytes));
+  const [imageUrl, setImageUrl] = useState(initialFormData?.imageUrl ?? 'https://freeimage.host/i/fUOgsUu');
+  const [mimeType] = useState(initialFormData?.mimeType ?? 'application/octet-stream');
+  const [fileName] = useState(initialFormData?.fileName ?? 'unknown');
+  const [contentType, setContentType] = useState(initialFormData?.contentType ?? initialFormData?.mimeType ?? 'application/octet-stream');
+  const [fileCount, setFileCount] = useState(initialFormData?.fileCount ?? 1);
   const [isSuccess, setIsSuccess] = useState(false);
   const [listingId, setListingId] = useState('');
 
@@ -60,6 +70,11 @@ export function CreateListingForm({ blobId, encryptedObject, totalSizeBytes, ini
         encryptedObject,
         previewSizeBytes,
         totalSizeBytes,
+        imageUrl,
+        mimeType,
+        fileName,
+        contentType,
+        fileCount,
       };
 
       createListing(input, (result) => {

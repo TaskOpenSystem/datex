@@ -15,8 +15,9 @@ use sui::vec_set::{Self, VecSet};
 // ============ Error codes ============
 const EInsufficientPayment: u64 = 0;
 // const EDatasetNotFound: u64 = 1;
-// const ENotSeller: u64 = 2;
+const ENotSeller: u64 = 2;
 // const EAlreadyPurchased: u64 = 3;
+const EListingInactive: u64 = 4;
 
 // ============ One-Time Witness ============
 public struct MARKETPLACE has drop {}
@@ -62,6 +63,12 @@ public struct DatasetListing has key, store {
     description: String,
     preview_size: u64, // Bytes available for preview
     total_size: u64,
+    image_url: String, // Preview image url
+    is_active: bool, // Listing is active or not
+    mime_type: String, // MIME type: "application/zip", "image/png", "text/csv", etc.
+    file_name: String, // Original file name for download
+    content_type: String, // For zip: type of files inside ("image/png", "image/jpeg", etc.)
+    file_count: u64, // Number of files (for zip archives)
 }
 
 /// Purchase receipt - proof that buyer paid for dataset
@@ -90,6 +97,11 @@ public struct DatasetPurchased has copy, drop {
     price: u64,
 }
 
+public struct DatasetUnlisted has copy, drop {
+    dataset_id: ID,
+    seller: address,
+}
+
 // ============ Functions ============
 
 /// Create a new dataset listing
@@ -102,6 +114,11 @@ public fun list_dataset(
     price: u64,
     preview_size: u64,
     total_size: u64,
+    image_url: String,
+    mime_type: String,
+    file_name: String,
+    content_type: String,
+    file_count: u64,
     ctx: &mut TxContext,
 ): DatasetListing {
     let listing = DatasetListing {
@@ -114,6 +131,12 @@ public fun list_dataset(
         description,
         preview_size,
         total_size,
+        image_url,
+        is_active: true,
+        mime_type,
+        file_name,
+        content_type,
+        file_count,
     };
 
     // Register to registry
@@ -136,6 +159,7 @@ public fun purchase_dataset(
     clock: &sui::clock::Clock,
     ctx: &mut TxContext,
 ): PurchaseReceipt {
+    assert!(listing.is_active, EListingInactive);
     assert!(coin::value(&payment) >= listing.price, EInsufficientPayment);
 
     // Transfer payment to seller
@@ -168,8 +192,17 @@ public fun is_registered(registry: &DatasetRegistry, listing_id: ID): bool {
 }
 
 /// Remove listing from registry
-public fun unregister_listing(registry: &mut DatasetRegistry, listing_id: ID) {
-    vec_set::remove(&mut registry.listings, &listing_id);
+public fun unregister_listing(registry: &mut DatasetRegistry, listing: &mut DatasetListing, ctx: &mut TxContext) {
+    assert!(listing.seller == ctx.sender(), ENotSeller);
+    assert!(listing.is_active, EListingInactive);
+
+    vec_set::remove(&mut registry.listings, &object::id(listing));
+    listing.is_active = false;
+
+    event::emit(DatasetUnlisted {
+        dataset_id: object::id(listing),
+        seller: listing.seller,
+    });
 }
 
 /// Number of listings in registry
@@ -180,6 +213,10 @@ public fun listings_count(registry: &DatasetRegistry): u64 {
 /// Get all listing IDs
 public fun get_all_listings(registry: &DatasetRegistry): vector<ID> {
     *vec_set::keys(&registry.listings)
+}
+
+public fun is_active(listing: &DatasetListing): bool {
+    listing.is_active
 }
 
 // ============ Test Only Functions ============

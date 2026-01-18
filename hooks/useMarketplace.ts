@@ -79,6 +79,12 @@ export function useAllListings() {
             description: fields.description as string,
             previewSize: BigInt(fields.preview_size as string),
             totalSize: BigInt(fields.total_size as string),
+            imageUrl: (fields.image_url as string) || 'https://freeimage.host/i/fUOgsUu',
+            isActive: fields.is_active as boolean,
+            mimeType: fields.mime_type as string,
+            fileName: fields.file_name as string,
+            contentType: fields.content_type as string,
+            fileCount: Number(fields.file_count || 1),
           } as DatasetListing;
         })
         .filter((listing): listing is DatasetListing => listing !== null);
@@ -137,6 +143,11 @@ export function useListDataset() {
           tx.pure.u64(priceInMIST),
           tx.pure.u64(input.previewSizeBytes),
           tx.pure.u64(input.totalSizeBytes),
+          tx.pure.string(input.imageUrl || 'https://freeimage.host/i/fUOgsUu'),
+          tx.pure.string(input.mimeType || 'application/octet-stream'),
+          tx.pure.string(input.fileName || 'unknown'),
+          tx.pure.string(input.contentType || input.mimeType || 'application/octet-stream'),
+          tx.pure.u64(input.fileCount || 1),
         ],
       });
       console.log('list_dataset moveCall created, listing result:', listing);
@@ -218,6 +229,11 @@ export function useListDataset() {
             tx.pure.u64(priceInMIST),
             tx.pure.u64(input.previewSizeBytes),
             tx.pure.u64(input.totalSizeBytes),
+            tx.pure.string(input.imageUrl || 'https://freeimage.host/i/fUOgsUu'),
+            tx.pure.string(input.mimeType || 'application/octet-stream'),
+            tx.pure.string(input.fileName || 'unknown'),
+            tx.pure.string(input.contentType || input.mimeType || 'application/octet-stream'),
+            tx.pure.u64(input.fileCount || 1),
           ],
         });
 
@@ -276,6 +292,11 @@ export function useListDataset() {
           tx.pure.u64(priceInMIST),
           tx.pure.u64(input.previewSizeBytes),
           tx.pure.u64(input.totalSizeBytes),
+          tx.pure.string(input.imageUrl || 'https://freeimage.host/i/fUOgsUu'),
+          tx.pure.string(input.mimeType || 'application/octet-stream'),
+          tx.pure.string(input.fileName || 'unknown'),
+          tx.pure.string(input.contentType || input.mimeType || 'application/octet-stream'),
+          tx.pure.u64(input.fileCount || 1),
         ],
       });
 
@@ -413,6 +434,12 @@ export function useOwnedListings(address?: string) {
             description: fields.description as string,
             previewSize: BigInt(fields.preview_size as string),
             totalSize: BigInt(fields.total_size as string),
+            imageUrl: (fields.image_url as string) || 'https://freeimage.host/i/fUOgsUu',
+            isActive: fields.is_active as boolean,
+            mimeType: fields.mime_type as string,
+            fileName: fields.file_name as string,
+            contentType: fields.content_type as string,
+            fileCount: Number(fields.file_count || 1),
           } as DatasetListing;
         })
         .filter((listing): listing is DatasetListing => listing !== null);
@@ -469,6 +496,12 @@ export function useListing(listingId: string | undefined) {
           description: fields.description as string,
           previewSize: BigInt(fields.preview_size as string),
           totalSize: BigInt(fields.total_size as string),
+          imageUrl: (fields.image_url as string) || 'https://freeimage.host/i/fUOgsUu',
+          isActive: fields.is_active as boolean,
+          mimeType: fields.mime_type as string,
+          fileName: fields.file_name as string,
+          contentType: fields.content_type as string,
+          fileCount: Number(fields.file_count || 1),
         } as DatasetListing;
       } catch (err) {
         console.error('[useListing] Parse error:', err);
@@ -562,6 +595,12 @@ export function usePurchasedDatasets(address?: string) {
             description: fields.description as string,
             previewSize: BigInt(fields.preview_size as string),
             totalSize: BigInt(fields.total_size as string),
+            imageUrl: (fields.image_url as string) || 'https://freeimage.host/i/fUOgsUu',
+            isActive: fields.is_active as boolean,
+            mimeType: fields.mime_type as string,
+            fileName: fields.file_name as string,
+            contentType: fields.content_type as string,
+            fileCount: Number(fields.file_count || 1),
           };
           datasetMap.set(obj.data.objectId || '', dataset);
         }

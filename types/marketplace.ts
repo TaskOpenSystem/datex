@@ -111,6 +111,12 @@ export interface DatasetListing {
   description: string;
   previewSize: bigint;
   totalSize: bigint;
+  imageUrl?: string;
+  isActive?: boolean;
+  mimeType?: string;
+  fileName?: string;
+  contentType?: string;
+  fileCount?: number;
 }
 
 export interface PurchaseReceipt {
@@ -130,6 +136,11 @@ export interface CreateListingInput {
   encryptedObject: string;
   previewSizeBytes: number;
   totalSizeBytes: number;
+  imageUrl: string;
+  mimeType: string;
+  fileName: string;
+  contentType: string;
+  fileCount: number;
 }
 
 export interface CreateListingResult {

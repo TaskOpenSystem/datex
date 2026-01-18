@@ -87,7 +87,18 @@ export default function MyDataPage() {
     description: '',
     priceSUI: '',
     previewSizeBytes: 1024 * 1024,
+    imageUrl: '',
+    mimeType: '',
+    fileName: '',
+    contentType: '',
+    fileCount: 1,
   });
+
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const DEFAULT_IMAGE_URL = 'https://freeimage.host/i/fUOgsUu';
 
   const flowRef = useRef<Awaited<ReturnType<typeof createFlow>> | null>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -237,13 +248,102 @@ export default function MyDataPage() {
     if (!selectedFile) return;
     setFile(selectedFile);
     setTotalSizeBytes(selectedFile.size);
-    setFormData(prev => ({ ...prev, previewSizeBytes: Math.min(1024 * 1024, selectedFile.size) }));
+    
+    // Auto-detect mime_type, file_name, content_type
+    const mimeType = selectedFile.type || 'application/octet-stream';
+    const fileName = selectedFile.name;
+    
+    // For zip files, try to detect content type from file name patterns
+    let contentType = mimeType;
+    let fileCount = 1;
+    
+    if (mimeType === 'application/zip' || mimeType === 'application/x-zip-compressed' || fileName.endsWith('.zip')) {
+      // Default content type for zip - user can change this
+      contentType = 'mixed';
+    }
+    
+    setFormData(prev => ({ 
+      ...prev, 
+      previewSizeBytes: Math.min(1024 * 1024, selectedFile.size),
+      mimeType,
+      fileName,
+      contentType,
+      fileCount,
+    }));
     setUploadStep('form');
     setBlobId('');
     setEncryptedObject('');
     setLogs([]);
     setCurrentStep('encode');
     flowRef.current = null;
+  };
+
+  // Upload image via API route (to avoid CORS)
+  const uploadImageToFreeImage = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64 = (reader.result as string).split(',')[1];
+          
+          const response = await fetch('/api/upload-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64 }),
+          });
+          
+          const data = await response.json();
+          
+          if (data.success && data.url) {
+            resolve(data.url);
+          } else {
+            reject(new Error(data.error || 'Failed to upload image'));
+          }
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+    
+    // Validate image type
+    if (!selectedFile.type.startsWith('image/')) {
+      setUploadError('Please select an image file');
+      return;
+    }
+    
+    setImageFile(selectedFile);
+    
+    // Create local preview first
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(selectedFile);
+    
+    // Auto upload immediately
+    setIsUploadingImage(true);
+    try {
+      const imageUrl = await uploadImageToFreeImage(selectedFile);
+      setFormData(prev => ({ ...prev, imageUrl }));
+      setImagePreview(imageUrl);
+      
+      // Log the uploaded image URL
+      console.log('=== IMAGE UPLOADED ===');
+      console.log('Image URL:', imageUrl);
+      
+    } catch (error) {
+      console.error('Image upload failed:', error);
+      setUploadError('Failed to upload image. Will use default image.');
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   const handleInputChange = (field: string, value: string | number) => {
@@ -285,11 +385,11 @@ export default function MyDataPage() {
         console.log('Encrypted data size:', dataToUpload.length);
         await addLogWithDelay('encode', 'success', 'File encrypted with Seal');
       } catch (encryptError) {
-        console.warn('Seal encryption failed, uploading unencrypted:', encryptError);
-        // Fallback: upload unencrypted if Seal fails
-        dataToUpload = uint8Array;
-        encryptedObj = bytesToHex(uint8Array).slice(0, 128);
-        await addLogWithDelay('encode', 'success', 'File prepared (unencrypted fallback)');
+        console.error('Seal encryption failed:', encryptError);
+        await addLogWithDelay('encode', 'error', 'Encryption failed. Please try again.');
+        setUploadError('Failed to encrypt file. Please try again.');
+        setIsProcessing(false);
+        return;
       }
 
       setEncryptedObject(encryptedObj);
@@ -431,12 +531,18 @@ export default function MyDataPage() {
       const priceInMIST = BigInt(Math.floor(price * Number(MIST_PER_SUI)));
       const registryId = marketplaceConfig.registryId;
 
-      const tx = new Transaction();
+      // Determine final image URL - use uploaded URL or default
+      const finalImageUrl = formData.imageUrl || DEFAULT_IMAGE_URL;
 
-      console.log('=== CREATE LISTING (my-data) ===');
+      const tx = new Transaction();
       console.log('Price in MIST:', priceInMIST.toString());
       console.log('Registry ID:', registryId);
       console.log('Blob ID:', walrusBlobId || blobId);
+      console.log('Image URL:', finalImageUrl);
+      console.log('MIME Type:', formData.mimeType);
+      console.log('File Name:', formData.fileName);
+      console.log('Content Type:', formData.contentType);
+      console.log('File Count:', formData.fileCount);
 
       const listing = tx.moveCall({
         target: getMarketplaceTarget('list_dataset'),
@@ -449,6 +555,11 @@ export default function MyDataPage() {
           tx.pure.u64(priceInMIST),
           tx.pure.u64(formData.previewSizeBytes),
           tx.pure.u64(totalSizeBytes),
+          tx.pure.string(finalImageUrl),
+          tx.pure.string(formData.mimeType || 'application/octet-stream'),
+          tx.pure.string(formData.fileName || 'unknown'),
+          tx.pure.string(formData.contentType || formData.mimeType || 'application/octet-stream'),
+          tx.pure.u64(formData.fileCount || 1),
         ],
       });
       console.log('list_dataset moveCall created');
@@ -512,9 +623,16 @@ export default function MyDataPage() {
       description: '',
       priceSUI: '',
       previewSizeBytes: 1024 * 1024,
+      imageUrl: '',
+      mimeType: '',
+      fileName: '',
+      contentType: '',
+      fileCount: 1,
     });
     setLogs([]);
     setListingId('');
+    setImageFile(null);
+    setImagePreview('');
     flowRef.current = null;
   };
 
@@ -639,14 +757,25 @@ export default function MyDataPage() {
                   className="flex flex-col rounded-xl border-2 border-ink bg-white overflow-hidden hover:shadow-hard transition-all duration-200 hover:-translate-y-1 cursor-pointer group"
                 >
                   {/* Image/Preview Area */}
-                  <div className="relative h-36 bg-linear-to-br from-gray-800 to-gray-900 flex items-center justify-center">
-                    <div className="absolute inset-0 opacity-20">
-                      <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                        <path d="M0,50 Q25,30 50,50 T100,50" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
-                        <path d="M0,60 Q25,40 50,60 T100,60" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
-                      </svg>
-                    </div>
-                    <span className="material-symbols-outlined text-5xl text-gray-600">dataset</span>
+                  <div className="relative h-36 bg-gray-100 flex items-center justify-center overflow-hidden">
+                    {listing.imageUrl ? (
+                      <img 
+                        src={listing.imageUrl} 
+                        alt={listing.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <>
+                        <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900" />
+                        <div className="absolute inset-0 opacity-20">
+                          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                            <path d="M0,50 Q25,30 50,50 T100,50" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
+                            <path d="M0,60 Q25,40 50,60 T100,60" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
+                          </svg>
+                        </div>
+                        <span className="material-symbols-outlined text-5xl text-gray-600 relative z-10">dataset</span>
+                      </>
+                    )}
                     <span className="absolute top-3 left-3 rounded bg-accent-lime text-ink px-2 py-0.5 text-[10px] font-bold border border-ink">ACTIVE</span>
 
                     {/* Explorer Links */}
@@ -993,23 +1122,91 @@ export default function MyDataPage() {
                             )}
                           </div>
 
+                          {/* Preview Image Section */}
                           <div>
-                            <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Preview Size</label>
-                            <input
-                              type="range"
-                              value={formData.previewSizeBytes}
-                              onChange={(e) => handleInputChange('previewSizeBytes', Number(e.target.value))}
-                              min={0}
-                              max={totalSizeBytes || 10 * 1024 * 1024}
-                              step={1024}
-                              className="w-full"
-                            />
-                            <div className="flex justify-between text-sm text-gray-500">
-                              <span>0 B</span>
-                              <span className="text-primary font-bold">{formatSize(formData.previewSizeBytes)}</span>
-                              <span>{formatSize(totalSizeBytes)}</span>
-                            </div>
+                            <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Preview Image (Optional)</label>
+                            <p className="text-xs text-gray-400 mb-2">Leave empty to use default image</p>
+                            
+                            {/* Show uploaded image preview - larger display */}
+                            {formData.imageUrl ? (
+                              <div className="relative w-full aspect-video rounded-xl overflow-hidden border-2 border-ink shadow-lg">
+                                <img 
+                                  src={formData.imageUrl} 
+                                  alt="Preview" 
+                                  className="w-full h-full object-cover"
+                                />
+                                <button
+                                  onClick={() => {
+                                    setFormData(prev => ({ ...prev, imageUrl: '' }));
+                                    setImageFile(null);
+                                    setImagePreview('');
+                                  }}
+                                  className="absolute top-2 right-2 text-white hover:text-gray-200 transition-colors"
+                                >
+                                  <span className="material-symbols-outlined text-2xl drop-shadow-lg">close</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <label className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer hover:border-primary hover:bg-blue-50 transition-all block ${isUploadingImage ? 'opacity-50 pointer-events-none border-primary bg-blue-50' : 'border-gray-300'}`}>
+                                <input
+                                  type="file"
+                                  onChange={handleImageSelect}
+                                  className="hidden"
+                                  accept="image/*"
+                                  disabled={isUploadingImage}
+                                />
+                                {isUploadingImage ? (
+                                  <div className="py-4">
+                                    <span className="material-symbols-outlined text-4xl text-primary animate-spin">sync</span>
+                                    <p className="text-sm text-primary mt-2 font-bold">Uploading image...</p>
+                                  </div>
+                                ) : (
+                                  <div className="py-4">
+                                    <span className="material-symbols-outlined text-4xl text-gray-400">add_photo_alternate</span>
+                                    <p className="text-sm text-gray-500 mt-2">Click to select image</p>
+                                    <p className="text-xs text-gray-400 mt-1">or leave empty for default</p>
+                                  </div>
+                                )}
+                              </label>
+                            )}
                           </div>
+
+                          {/* Content Type for ZIP files */}
+                          {(formData.mimeType === 'application/zip' || formData.mimeType === 'application/x-zip-compressed' || formData.fileName?.endsWith('.zip')) && (
+                            <div>
+                              <label className="block text-sm font-bold text-gray-500 uppercase mb-1">Content Type (inside ZIP)</label>
+                              <select
+                                value={formData.contentType}
+                                onChange={(e) => handleInputChange('contentType', e.target.value)}
+                                className="w-full rounded-lg border-2 border-gray-200 focus:border-primary focus:ring-0 font-medium text-ink transition-colors p-3"
+                              >
+                                <option value="mixed">Mixed Content</option>
+                                <option value="image/png">PNG Images</option>
+                                <option value="image/jpeg">JPEG Images</option>
+                                <option value="image/webp">WebP Images</option>
+                                <option value="text/csv">CSV Files</option>
+                                <option value="application/json">JSON Files</option>
+                                <option value="text/plain">Text Files</option>
+                                <option value="application/pdf">PDF Documents</option>
+                              </select>
+                              <p className="text-xs text-gray-500 mt-1">Type of files contained in the ZIP archive</p>
+                            </div>
+                          )}
+
+                          {/* File Count for ZIP files */}
+                          {(formData.mimeType === 'application/zip' || formData.mimeType === 'application/x-zip-compressed' || formData.fileName?.endsWith('.zip')) && (
+                            <div>
+                              <label className="block text-sm font-bold text-gray-500 uppercase mb-1">File Count</label>
+                              <input
+                                type="number"
+                                value={formData.fileCount}
+                                onChange={(e) => handleInputChange('fileCount', Math.max(1, parseInt(e.target.value) || 1))}
+                                min="1"
+                                className="w-full rounded-lg border-2 border-gray-200 focus:border-primary focus:ring-0 font-bold text-ink placeholder:text-gray-300 transition-colors p-3"
+                              />
+                              <p className="text-xs text-gray-500 mt-1">Number of files in the archive</p>
+                            </div>
+                          )}
                         </div>
 
                         <div className="space-y-4">
@@ -1060,12 +1257,39 @@ export default function MyDataPage() {
                                   <p className="font-mono font-bold text-ink">{formatSize(file.size)}</p>
                                 </div>
                                 <div>
-                                  <p className="text-gray-500">Type</p>
-                                  <p className="font-mono font-bold text-ink">{file.type || 'Unknown'}</p>
+                                  <p className="text-gray-500">MIME Type</p>
+                                  <p className="font-mono font-bold text-ink text-xs">{formData.mimeType || 'Unknown'}</p>
+                                </div>
+                                <div className="col-span-2">
+                                  <p className="text-gray-500">File Name</p>
+                                  <p className="font-mono font-bold text-ink text-xs truncate">{formData.fileName}</p>
                                 </div>
                               </div>
                             </div>
                           )}
+
+                          {/* Preview Size */}
+                          <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4">
+                            <label className="block text-sm font-bold text-gray-500 uppercase mb-2">Preview Size</label>
+                            <p className="text-xs text-gray-400 mb-3">Amount of data available for free preview</p>
+                            <input
+                              type="range"
+                              value={formData.previewSizeBytes}
+                              onChange={(e) => handleInputChange('previewSizeBytes', Number(e.target.value))}
+                              min={0}
+                              max={totalSizeBytes || 10 * 1024 * 1024}
+                              step={1024}
+                              className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+                              style={{
+                                background: `linear-gradient(to right, #1a1a1a ${(formData.previewSizeBytes / (totalSizeBytes || 10 * 1024 * 1024)) * 100}%, #e5e7eb ${(formData.previewSizeBytes / (totalSizeBytes || 10 * 1024 * 1024)) * 100}%)`
+                              }}
+                            />
+                            <div className="flex justify-between text-sm mt-2">
+                              <span className="text-gray-400">0 B</span>
+                              <span className="text-primary font-bold text-base">{formatSize(formData.previewSizeBytes)}</span>
+                              <span className="text-gray-400">{formatSize(totalSizeBytes || 10 * 1024 * 1024)}</span>
+                            </div>
+                          </div>
 
                           <button
                             onClick={handleStartUpload}

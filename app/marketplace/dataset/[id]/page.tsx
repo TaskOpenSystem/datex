@@ -231,15 +231,28 @@ export default function DatasetDetailPage() {
           
           {/* Hero Image */}
           <section>
-            <div className="relative w-full aspect-[2/1] rounded-2xl border-2 border-ink bg-gradient-to-br from-gray-800 to-gray-900 overflow-hidden shadow-hard-lg group flex items-center justify-center">
-              <div className="absolute inset-0 opacity-20">
-                <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                  <path d="M0,50 Q25,30 50,50 T100,50" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
-                  <path d="M0,60 Q25,40 50,60 T100,60" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
-                  <path d="M0,40 Q25,20 50,40 T100,40" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
-                </svg>
-              </div>
-              <span className="material-symbols-outlined text-[120px] text-gray-600">dataset</span>
+            <div className="relative w-full aspect-[2/1] rounded-2xl border-2 border-ink overflow-hidden shadow-hard-lg group">
+              {listing.imageUrl ? (
+                <img 
+                  src={listing.imageUrl} 
+                  alt={listing.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+              ) : (
+                <>
+                  <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900" />
+                  <div className="absolute inset-0 opacity-20">
+                    <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                      <path d="M0,50 Q25,30 50,50 T100,50" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
+                      <path d="M0,60 Q25,40 50,60 T100,60" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
+                      <path d="M0,40 Q25,20 50,40 T100,40" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
+                    </svg>
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[120px] text-gray-600">dataset</span>
+                  </div>
+                </>
+              )}
               <div className="absolute bottom-4 right-4 flex gap-2">
                 <button onClick={handlePreviewClick} className="h-10 px-4 bg-white border-2 border-ink rounded-lg flex items-center justify-center gap-2 hover:bg-accent-lime transition-colors shadow-hard-sm text-ink">
                   <span className="material-symbols-outlined text-[18px]">visibility</span>

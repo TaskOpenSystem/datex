@@ -116,14 +116,25 @@ export default function MarketplacePage() {
                   }`}
                 >
                   {/* Image/Preview Area */}
-                  <div className="relative h-40 bg-linear-to-br from-gray-800 to-gray-900 flex items-center justify-center">
-                    <div className="absolute inset-0 opacity-20">
-                      <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                        <path d="M0,50 Q25,30 50,50 T100,50" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
-                        <path d="M0,60 Q25,40 50,60 T100,60" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
-                      </svg>
-                    </div>
-                    <span className="material-symbols-outlined text-6xl text-gray-600">dataset</span>
+                  <div className="relative h-40 bg-gray-100 flex items-center justify-center overflow-hidden">
+                    {listing.imageUrl ? (
+                      <img 
+                        src={listing.imageUrl} 
+                        alt={listing.name}
+                        className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <>
+                        <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900" />
+                        <div className="absolute inset-0 opacity-20">
+                          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                            <path d="M0,50 Q25,30 50,50 T100,50" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
+                            <path d="M0,60 Q25,40 50,60 T100,60" stroke="currentColor" strokeWidth="0.5" fill="none" className="text-accent-lime" />
+                          </svg>
+                        </div>
+                        <span className="material-symbols-outlined text-6xl text-gray-600 relative z-10">dataset</span>
+                      </>
+                    )}
                     
                     {/* Badge */}
                     {isOwner(listing) && (
