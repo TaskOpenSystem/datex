@@ -293,6 +293,14 @@ export default function DatasetDetailPage() {
           </div>
           <div className="flex items-center justify-between p-4 bg-white border-2 border-ink rounded-xl shadow-hard-sm">
             <span className="text-sm font-bold text-gray-500 uppercase">
+              Preview Size
+            </span>
+            <span className="text-xl font-black text-ink">
+              {formatSize(Number(listing.previewSize))}
+            </span>
+          </div>
+          <div className="flex items-center justify-between p-4 bg-white border-2 border-ink rounded-xl shadow-hard-sm">
+            <span className="text-sm font-bold text-gray-500 uppercase">
               Quality Score
             </span>
             <div className="flex items-center gap-2">
@@ -307,7 +315,7 @@ export default function DatasetDetailPage() {
               Format
             </span>
             <span className="text-xl font-black text-ink">
-              {dummyData.formats.join(" / ")}
+              {listing.mimeType || dummyData.formats.join(" / ")}
             </span>
           </div>
         </div>
@@ -863,6 +871,10 @@ export default function DatasetDetailPage() {
         datasetId={listing.id}
         blobId={listing.blobId}
         datasetName={listing.name}
+        previewBytes={Number(listing.previewSize)}
+        requesterAddress={account?.address || ""}
+        mimeType={listing.mimeType || "application/octet-stream"}
+        fileName={listing.fileName || "download"}
       />
     </div>
   );

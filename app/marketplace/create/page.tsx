@@ -39,7 +39,7 @@ export default function CreateListingPage() {
     name: '',
     description: '',
     priceSUI: '',
-    previewSizeBytes: 1024 * 1024,
+    previewSizeBytes: 1024,
   });
   const [uploadError, setUploadError] = useState('');
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
@@ -78,7 +78,7 @@ export default function CreateListingPage() {
     if (!selectedFile) return;
     setFile(selectedFile);
     setTotalSizeBytes(selectedFile.size);
-    setFormData(prev => ({ ...prev, previewSizeBytes: Math.min(1024 * 1024, selectedFile.size) }));
+    setFormData(prev => ({ ...prev, previewSizeBytes: 1024 }));
   };
 
   const handleInputChange = (field: string, value: string | number) => {
@@ -216,7 +216,7 @@ export default function CreateListingPage() {
       name: '',
       description: '',
       priceSUI: '',
-      previewSizeBytes: 1024 * 1024,
+      previewSizeBytes: 1024,
     });
     flowRef.current = null;
     registerDigestRef.current = '';
@@ -396,16 +396,17 @@ export default function CreateListingPage() {
                     type="range"
                     value={formData.previewSizeBytes}
                     onChange={(e) => handleInputChange('previewSizeBytes', Number(e.target.value))}
-                    min={0}
-                    max={totalSizeBytes || 10 * 1024 * 1024}
-                    step={1024}
+                    min={1024}
+                    max={3072}
+                    step={128}
                     className="w-full h-3 bg-gray-200 rounded-full appearance-none cursor-pointer"
                   />
                   <div className="flex justify-between text-sm text-gray-500 mt-2 font-mono">
-                    <span>0 B</span>
+                    <span>1 KB</span>
                     <span className="text-[#3B82F6] font-bold">{formatSize(formData.previewSizeBytes)}</span>
-                    <span>{formatSize(totalSizeBytes)}</span>
+                    <span>3 KB</span>
                   </div>
+                  <p className="text-xs text-gray-500 mt-1">Amount of data available for free preview (1KB - 3KB)</p>
                 </div>
               </div>
 

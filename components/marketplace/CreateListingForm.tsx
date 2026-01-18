@@ -33,8 +33,8 @@ export function CreateListingForm({ blobId, encryptedObject, totalSizeBytes, ini
   const [name, setName] = useState(initialFormData?.name ?? '');
   const [description, setDescription] = useState(initialFormData?.description ?? '');
   const [priceSUI, setPriceSUI] = useState(initialFormData?.priceSUI ?? '');
-  const [previewSizeBytes, setPreviewSizeBytes] = useState(initialFormData?.previewSizeBytes ?? Math.min(1024 * 1024, totalSizeBytes));
-  const [imageUrl, setImageUrl] = useState(initialFormData?.imageUrl ?? 'https://freeimage.host/i/fUOgsUu');
+  const [previewSizeBytes, setPreviewSizeBytes] = useState(initialFormData?.previewSizeBytes ?? 1024);
+  const [imageUrl, setImageUrl] = useState(initialFormData?.imageUrl ?? 'https://iili.io/fUOriLN.webp');
   const [mimeType] = useState(initialFormData?.mimeType ?? 'application/octet-stream');
   const [fileName] = useState(initialFormData?.fileName ?? 'unknown');
   const [contentType, setContentType] = useState(initialFormData?.contentType ?? initialFormData?.mimeType ?? 'application/octet-stream');
@@ -194,18 +194,18 @@ export function CreateListingForm({ blobId, encryptedObject, totalSizeBytes, ini
           type="range"
           value={previewSizeBytes}
           onChange={(e) => setPreviewSizeBytes(Number(e.target.value))}
-          min={0}
-          max={totalSizeBytes}
-          step={1024}
+          min={1024}
+          max={3072}
+          step={128}
           className="w-full h-3 bg-gray-200 rounded-full appearance-none cursor-pointer"
         />
         <div className="flex justify-between text-sm text-gray-500 mt-1">
-          <span>0 B</span>
+          <span>1 KB</span>
           <span className="text-[#3B82F6] font-bold">{formatSize(previewSizeBytes)}</span>
-          <span>{formatSize(totalSizeBytes)}</span>
+          <span>3 KB</span>
         </div>
         <p className="text-xs text-gray-500 mt-1">
-          Free preview data size available to buyers
+          Free preview data size available to buyers (1KB - 3KB)
         </p>
       </div>
 

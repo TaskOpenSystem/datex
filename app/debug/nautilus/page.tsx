@@ -3,10 +3,12 @@
 import { useState } from 'react';
 
 export default function NautilusDebugPage() {
-  const [datasetId, setDatasetId] = useState('0x16ed922757efb7e3279ddf743e165534ef7ee799e94008bc75e2e718a7c3ce60');
-  const [blobId, setBlobId] = useState('rAn6in1tuthnEXePcM7oqhAoLgsfUfYALVhb00AE4hw');
-  const [paymentTxDigest, setPaymentTxDigest] = useState('HxEdeXjc2TvZpLpvFf4hMj5sdBVKnqEh2H55BHYQzRKZ');
-  const [buyerAddress, setBuyerAddress] = useState('0x053b2bd6cd161d17de723c1cffdade1cd29bcf4c77952d3c3165faae117892cf');
+  const [datasetId, setDatasetId] = useState('0xde563946dec9e816eb1337c526f3315c1772385980c0ef044f2300288580b659');
+  const [blobId, setBlobId] = useState('iqSMLMRmNDhBw5GtkdwnjY0-JKAwkgcHG_xZlypFC40');
+  const [previewBytes, setPreviewBytes] = useState(50);
+  const [requesterAddress, setRequesterAddress] = useState('0xbuyer123');
+  const [mimeType, setMimeType] = useState('application/octet-stream');
+  const [fileName, setFileName] = useState('download');
   const [loading, setLoading] = useState(false);
   const [response, setResponse] = useState<any>(null);
   const [decodedPreview, setDecodedPreview] = useState<string | null>(null);
@@ -36,8 +38,10 @@ export default function NautilusDebugPage() {
         body: JSON.stringify({
           dataset_id: datasetId,
           blob_id: blobId,
-          payment_tx_digest: paymentTxDigest || undefined,
-          buyer_address: buyerAddress || undefined,
+          preview_bytes: previewBytes,
+          requester_address: requesterAddress,
+          mime_type: mimeType,
+          file_name: fileName,
         }),
       });
 
@@ -74,7 +78,7 @@ export default function NautilusDebugPage() {
               type="text"
               value={datasetId}
               onChange={(e) => setDatasetId(e.target.value)}
-              placeholder="0x16ed922757efb7e3279ddf743e165534ef7ee799e94008bc75e2e718a7c3ce60"
+              placeholder="test-dataset"
               className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500"
               required
             />
@@ -86,31 +90,57 @@ export default function NautilusDebugPage() {
               type="text"
               value={blobId}
               onChange={(e) => setBlobId(e.target.value)}
-              placeholder="rAn6in1tuthnEXePcM7oqhAoLgsfUfYALVhb00AE4hw"
+              placeholder="XytJmscRNoZlvjHnpIQDEz_4N9Xqqu4LWwil09FbpJo"
               className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Payment TX Digest <span className="text-gray-500">(optional)</span></label>
+            <label className="block text-sm font-medium mb-2">Preview Bytes</label>
             <input
-              type="text"
-              value={paymentTxDigest}
-              onChange={(e) => setPaymentTxDigest(e.target.value)}
-              placeholder="HxEdeXjc2TvZpLpvFf4hMj5sdBVKnqEh2H55BHYQzRKZ"
+              type="number"
+              value={previewBytes}
+              onChange={(e) => setPreviewBytes(Number(e.target.value))}
+              placeholder="100"
               className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500"
+              required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Buyer Address <span className="text-gray-500">(optional)</span></label>
+            <label className="block text-sm font-medium mb-2">Requester Address</label>
             <input
               type="text"
-              value={buyerAddress}
-              onChange={(e) => setBuyerAddress(e.target.value)}
-              placeholder="0x053b2bd6cd161d17de723c1cffdade1cd29bcf4c77952d3c3165faae117892cf"
+              value={requesterAddress}
+              onChange={(e) => setRequesterAddress(e.target.value)}
+              placeholder="0xbuyer123"
               className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">MIME Type</label>
+            <input
+              type="text"
+              value={mimeType}
+              onChange={(e) => setMimeType(e.target.value)}
+              placeholder="text/csv"
+              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">File Name</label>
+            <input
+              type="text"
+              value={fileName}
+              onChange={(e) => setFileName(e.target.value)}
+              placeholder="data.csv"
+              className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500"
+              required
             />
           </div>
 

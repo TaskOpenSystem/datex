@@ -78,6 +78,7 @@ export default function MyDataPage() {
   const [totalSizeBytes, setTotalSizeBytes] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [listingId, setListingId] = useState('');
 
   const [logs, setLogs] = useState<TransactionLog[]>([]);
@@ -86,7 +87,7 @@ export default function MyDataPage() {
     name: '',
     description: '',
     priceSUI: '',
-    previewSizeBytes: 1024 * 1024,
+    previewSizeBytes: 1024,
     imageUrl: '',
     mimeType: '',
     fileName: '',
@@ -98,7 +99,7 @@ export default function MyDataPage() {
   const [imagePreview, setImagePreview] = useState<string>('');
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
-  const DEFAULT_IMAGE_URL = 'https://freeimage.host/i/fUOgsUu';
+  const DEFAULT_IMAGE_URL = 'https://iili.io/fUOriLN.webp';
 
   const flowRef = useRef<Awaited<ReturnType<typeof createFlow>> | null>(null);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -264,7 +265,7 @@ export default function MyDataPage() {
     
     setFormData(prev => ({ 
       ...prev, 
-      previewSizeBytes: Math.min(1024 * 1024, selectedFile.size),
+      previewSizeBytes: 1024,
       mimeType,
       fileName,
       contentType,
@@ -622,7 +623,7 @@ export default function MyDataPage() {
       name: '',
       description: '',
       priceSUI: '',
-      previewSizeBytes: 1024 * 1024,
+      previewSizeBytes: 1024,
       imageUrl: '',
       mimeType: '',
       fileName: '',
@@ -634,6 +635,76 @@ export default function MyDataPage() {
     setImageFile(null);
     setImagePreview('');
     flowRef.current = null;
+  };
+
+  const handleDownload = async (purchase: {
+    id: string;
+    datasetId: string;
+    txDigest: string;
+    dataset: {
+      blobId: string;
+      mimeType?: string;
+      fileName?: string;
+    } | null;
+  }) => {
+    if (!purchase.dataset || !account) return;
+
+    setDownloadingId(purchase.id);
+    
+    try {
+      const payload = {
+        dataset_id: purchase.datasetId,
+        blob_id: purchase.dataset.blobId,
+        payment_tx_digest: purchase.txDigest,
+        buyer_address: account.address,
+        mime_type: purchase.dataset.mimeType || 'application/octet-stream',
+        file_name: purchase.dataset.fileName || 'data.bin',
+      };
+      
+      console.log('=== DOWNLOAD REQUEST ===');
+      console.log('URL:', '/api/nautilus/download');
+      console.log('Payload:', JSON.stringify(payload, null, 2));
+      
+      const response = await fetch('/api/nautilus/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      console.log('=== DOWNLOAD RESPONSE ===');
+      console.log('Status:', response.status);
+      console.log('StatusText:', response.statusText);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error response:', errorData);
+        throw new Error(errorData.error || `Download failed: ${response.status}`);
+      }
+
+      // Get the blob and trigger download
+      const blob = await response.blob();
+      console.log('Blob size:', blob.size);
+      console.log('Blob type:', blob.type);
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = purchase.dataset.fileName || 'data.bin';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      console.log('=== DOWNLOAD SUCCESS ===');
+    } catch (error) {
+      console.error('=== DOWNLOAD ERROR ===');
+      console.error('Error:', error);
+      alert('Failed to download. Please try again.');
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   const totalRevenue = listings ? listings.reduce((acc, l) => acc + Number(l.price), 0) / 1000000000 : 0;
@@ -958,13 +1029,23 @@ export default function MyDataPage() {
 
                     {/* Actions */}
                     <div className="flex gap-2 mt-auto pt-3 border-t border-gray-200">
-                      <Link
-                        href={`/marketplace/dataset/${purchase.datasetId}`}
-                        className="flex-1 h-9 rounded-lg border-2 border-ink bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors flex items-center justify-center gap-1"
+                      <button
+                        onClick={() => handleDownload(purchase)}
+                        disabled={downloadingId === purchase.id || !purchase.dataset}
+                        className="flex-1 h-9 rounded-lg border-2 border-ink bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
                       >
-                        <span className="material-symbols-outlined text-sm">download</span>
-                        Download
-                      </Link>
+                        {downloadingId === purchase.id ? (
+                          <>
+                            <span className="material-symbols-outlined text-sm animate-spin">sync</span>
+                            Downloading...
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-sm">download</span>
+                            Download
+                          </>
+                        )}
+                      </button>
                       <a
                         href={`https://suiscan.xyz/testnet/object/${purchase.id}`}
                         target="_blank"
@@ -1271,23 +1352,23 @@ export default function MyDataPage() {
                           {/* Preview Size */}
                           <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4">
                             <label className="block text-sm font-bold text-gray-500 uppercase mb-2">Preview Size</label>
-                            <p className="text-xs text-gray-400 mb-3">Amount of data available for free preview</p>
+                            <p className="text-xs text-gray-400 mb-3">Amount of data available for free preview (1KB - 3KB)</p>
                             <input
                               type="range"
                               value={formData.previewSizeBytes}
                               onChange={(e) => handleInputChange('previewSizeBytes', Number(e.target.value))}
-                              min={0}
-                              max={totalSizeBytes || 10 * 1024 * 1024}
-                              step={1024}
+                              min={1024}
+                              max={3072}
+                              step={128}
                               className="w-full h-2 rounded-lg appearance-none cursor-pointer"
                               style={{
-                                background: `linear-gradient(to right, #1a1a1a ${(formData.previewSizeBytes / (totalSizeBytes || 10 * 1024 * 1024)) * 100}%, #e5e7eb ${(formData.previewSizeBytes / (totalSizeBytes || 10 * 1024 * 1024)) * 100}%)`
+                                background: `linear-gradient(to right, #1a1a1a ${((formData.previewSizeBytes - 1024) / (3072 - 1024)) * 100}%, #e5e7eb ${((formData.previewSizeBytes - 1024) / (3072 - 1024)) * 100}%)`
                               }}
                             />
                             <div className="flex justify-between text-sm mt-2">
-                              <span className="text-gray-400">0 B</span>
+                              <span className="text-gray-400">1 KB</span>
                               <span className="text-primary font-bold text-base">{formatSize(formData.previewSizeBytes)}</span>
-                              <span className="text-gray-400">{formatSize(totalSizeBytes || 10 * 1024 * 1024)}</span>
+                              <span className="text-gray-400">3 KB</span>
                             </div>
                           </div>
 
@@ -1363,7 +1444,7 @@ export default function MyDataPage() {
                 </div>
 
                 {/* Right Panel - Transaction Logs */}
-                <div className="w-80 border-l-2 border-ink bg-gray-50 flex flex-col h-full">
+                <div className="w-80 border-l-2 border-ink bg-gray-50 flex flex-col min-h-0">
                   <div className="p-4 border-b border-gray-200 shrink-0">
                     <h3 className="font-bold uppercase text-sm text-ink flex items-center gap-2">
                       <span className="material-symbols-outlined">terminal</span>
@@ -1371,7 +1452,7 @@ export default function MyDataPage() {
                     </h3>
                   </div>
 
-                  <div ref={logContainerRef} className="flex-1 overflow-y-auto p-4 min-h-0">
+                  <div ref={logContainerRef} className="flex-1 overflow-y-auto p-4 min-h-0 max-h-[calc(90vh-200px)]">
                     {logs.length === 0 ? (
                       <p className="text-sm text-gray-400 text-center py-8">
                         No transactions yet.<br />

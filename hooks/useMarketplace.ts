@@ -79,7 +79,7 @@ export function useAllListings() {
             description: fields.description as string,
             previewSize: BigInt(fields.preview_size as string),
             totalSize: BigInt(fields.total_size as string),
-            imageUrl: (fields.image_url as string) || 'https://freeimage.host/i/fUOgsUu',
+            imageUrl: (fields.image_url as string) || 'https://iili.io/fUOriLN.webp',
             isActive: fields.is_active as boolean,
             mimeType: fields.mime_type as string,
             fileName: fields.file_name as string,
@@ -143,7 +143,7 @@ export function useListDataset() {
           tx.pure.u64(priceInMIST),
           tx.pure.u64(input.previewSizeBytes),
           tx.pure.u64(input.totalSizeBytes),
-          tx.pure.string(input.imageUrl || 'https://freeimage.host/i/fUOgsUu'),
+          tx.pure.string(input.imageUrl || 'https://iili.io/fUOriLN.webp'),
           tx.pure.string(input.mimeType || 'application/octet-stream'),
           tx.pure.string(input.fileName || 'unknown'),
           tx.pure.string(input.contentType || input.mimeType || 'application/octet-stream'),
@@ -229,7 +229,7 @@ export function useListDataset() {
             tx.pure.u64(priceInMIST),
             tx.pure.u64(input.previewSizeBytes),
             tx.pure.u64(input.totalSizeBytes),
-            tx.pure.string(input.imageUrl || 'https://freeimage.host/i/fUOgsUu'),
+            tx.pure.string(input.imageUrl || 'https://iili.io/fUOriLN.webp'),
             tx.pure.string(input.mimeType || 'application/octet-stream'),
             tx.pure.string(input.fileName || 'unknown'),
             tx.pure.string(input.contentType || input.mimeType || 'application/octet-stream'),
@@ -292,7 +292,7 @@ export function useListDataset() {
           tx.pure.u64(priceInMIST),
           tx.pure.u64(input.previewSizeBytes),
           tx.pure.u64(input.totalSizeBytes),
-          tx.pure.string(input.imageUrl || 'https://freeimage.host/i/fUOgsUu'),
+          tx.pure.string(input.imageUrl || 'https://iili.io/fUOriLN.webp'),
           tx.pure.string(input.mimeType || 'application/octet-stream'),
           tx.pure.string(input.fileName || 'unknown'),
           tx.pure.string(input.contentType || input.mimeType || 'application/octet-stream'),
@@ -434,7 +434,7 @@ export function useOwnedListings(address?: string) {
             description: fields.description as string,
             previewSize: BigInt(fields.preview_size as string),
             totalSize: BigInt(fields.total_size as string),
-            imageUrl: (fields.image_url as string) || 'https://freeimage.host/i/fUOgsUu',
+            imageUrl: (fields.image_url as string) || 'https://iili.io/fUOriLN.webp',
             isActive: fields.is_active as boolean,
             mimeType: fields.mime_type as string,
             fileName: fields.file_name as string,
@@ -496,7 +496,7 @@ export function useListing(listingId: string | undefined) {
           description: fields.description as string,
           previewSize: BigInt(fields.preview_size as string),
           totalSize: BigInt(fields.total_size as string),
-          imageUrl: (fields.image_url as string) || 'https://freeimage.host/i/fUOgsUu',
+          imageUrl: (fields.image_url as string) || 'https://iili.io/fUOriLN.webp',
           isActive: fields.is_active as boolean,
           mimeType: fields.mime_type as string,
           fileName: fields.file_name as string,
@@ -550,7 +550,7 @@ export function usePurchasedDatasets(address?: string) {
       const { data } = await suiClient.getOwnedObjects({
         owner: address,
         filter: { StructType: RECEIPT_TYPE },
-        options: { showContent: true, showType: true },
+        options: { showContent: true, showType: true, showPreviousTransaction: true },
       });
 
       const receipts = data
@@ -564,9 +564,10 @@ export function usePurchasedDatasets(address?: string) {
             seller: fields.seller as string,
             price: BigInt(fields.price as string),
             timestamp: Number(fields.timestamp),
+            txDigest: obj.data.previousTransaction || '',
           };
         })
-        .filter((receipt): receipt is { id: string; datasetId: string; buyer: string; seller: string; price: bigint; timestamp: number } => receipt !== null);
+        .filter((receipt): receipt is { id: string; datasetId: string; buyer: string; seller: string; price: bigint; timestamp: number; txDigest: string } => receipt !== null);
 
       if (receipts.length === 0) return [];
 
@@ -595,7 +596,7 @@ export function usePurchasedDatasets(address?: string) {
             description: fields.description as string,
             previewSize: BigInt(fields.preview_size as string),
             totalSize: BigInt(fields.total_size as string),
-            imageUrl: (fields.image_url as string) || 'https://freeimage.host/i/fUOgsUu',
+            imageUrl: (fields.image_url as string) || 'https://iili.io/fUOriLN.webp',
             isActive: fields.is_active as boolean,
             mimeType: fields.mime_type as string,
             fileName: fields.file_name as string,
